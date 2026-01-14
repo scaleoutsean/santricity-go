@@ -15,6 +15,7 @@ var (
 	password  string
 	caCert    string
 	insecure  bool
+	debug     bool
 	apiClient *santricity.Client
 	ctx       context.Context
 )
@@ -34,16 +35,28 @@ func main() {
 				caCertPEM = string(certBytes)
 			}
 
+			debugFlags := make(map[string]bool)
+			if debug {
+				debugFlags["api"] = true
+				debugFlags["method"] = true
+			}
+
 			config := santricity.ClientConfig{
-				ApiControllers: []string{endpoint},
-				ApiPort:        8443,
-				Username:       username,
-				Password:       password,
-				VerifyTLS:      !insecure,
-				CACertPEM:      caCertPEM,
+				ApiControllers:  []string{endpoint},
+				ApiPort:         8443,
+				Username:        username,
+				Password:        password,
+				VerifyTLS:       !insecure,
+				CACertPEM:       caCertPEM,
+				DebugTraceFlags: debugFlags,
 			}
 			ctx = context.Background()
 			apiClient = santricity.NewAPIClient(ctx, config)
+
+			// Establish connection to find the System ID
+			if _, err := apiClient.Connect(ctx); err != nil {
+				log.Fatalf("Error connecting to system: %v", err)
+			}
 		},
 	}
 
@@ -52,6 +65,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "admin", "Username")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password")
 	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 	rootCmd.MarkPersistentFlagRequired("endpoint")
 
 	var getCmd = &cobra.Command{

@@ -1,6 +1,6 @@
 // Copyright 2019 NetApp, Inc. All Rights Reserved.
 
-// This package provides a high-level interface to the E-series Web Services Proxy REST API.
+// This package provides a high-level interface to the E-series REST API.
 package santricity
 
 import (
@@ -107,7 +107,7 @@ func (d Client) makeVolumeTags() []VolumeTag {
 	}
 }
 
-// InvokeAPI makes a REST call to the Web Services Proxy. The body must be a marshaled JSON byte array (or nil).
+// InvokeAPI makes a REST call. The body must be a marshaled JSON byte array (or nil).
 // The method is the HTTP verb (i.e. GET, POST, ...).  The resource path is appended to the base URL to identify
 // the desired server resource; it should start with '/'.
 func (d Client) InvokeAPI(
@@ -129,8 +129,18 @@ func (d Client) InvokeAPI(
 	for _, controller := range d.config.ApiControllers {
 
 		// Build URL
-		url := fmt.Sprintf("%s://%s:%d/devmgr/v2/storage-systems/%s%s",
-			scheme, controller, d.config.ApiPort, d.config.ArrayID, resourcePath)
+		// If ArrayID is empty, we probably want to query the root or list systems
+		urlPath := ""
+		if d.config.ArrayID == "" {
+			// If no array ID, do not include a slash before it, but handle resource path
+			// effectively /devmgr/v2/storage-systems + resourcePath
+			// If resourcePath is empty, we list systems
+			urlPath = fmt.Sprintf("/devmgr/v2/storage-systems%s", resourcePath)
+		} else {
+			urlPath = fmt.Sprintf("/devmgr/v2/storage-systems/%s%s", d.config.ArrayID, resourcePath)
+		}
+
+		url := fmt.Sprintf("%s://%s:%d%s", scheme, controller, d.config.ApiPort, urlPath)
 
 		var request *http.Request
 		var prettyResponseBuffer bytes.Buffer
@@ -329,18 +339,51 @@ func (d Client) AboutInfo(ctx context.Context) (*AboutResponse, error) {
 	return nil, lastErr
 }
 
-// Connect to the E-Series system via the Web Services Proxy or the onboard system, as appropriate
+// Connect to the E-Series system via the API
 func (d Client) Connect(ctx context.Context) (string, error) {
-	aboutInfo, err := d.AboutInfo(ctx)
+
+	// First check basic connectivity
+	_, err := d.AboutInfo(ctx)
 	if err != nil {
-		return "", fmt.Errorf("could not determine system status: %v", err)
-	}
-	if aboutInfo == nil {
-		return "", fmt.Errorf("could not determine system status: aboutInfo was empty")
+		return "", fmt.Errorf("could not connect to system: %v", err)
 	}
 
-	d.config.ArrayID = aboutInfo.SystemID
-	return aboutInfo.SystemID, nil
+	// Now fetch the actual storage system ID (e.g. "1" or WWN)
+	// by querying /devmgr/v2/storage-systems/
+	// This does not require an ArrayID in the path yet.
+
+	// Temporarily unset ArrayID to ensure we just query the root of the API?
+	// Actually InvokeAPI uses config.ArrayID in the path: /devmgr/v2/storage-systems/{ArrayID}{resourcePath}
+	// If ArrayID is empty, path is /devmgr/v2/storage-systems/{resourcePath}.
+	// If resourcePath is "", we get /devmgr/v2/storage-systems/ which lists them.
+
+	d.config.ArrayID = ""
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "")
+	if err != nil {
+		// Fallback for older systems or proxies where maybe we should trust AboutInfo?
+		// But for now, let's error out if we can't find the system.
+		return "", fmt.Errorf("could not list storage systems: %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API error listing storage systems: %d", response.StatusCode)
+	}
+
+	var systems []StorageSystem
+	if err := json.Unmarshal(responseBody, &systems); err != nil {
+		return "", fmt.Errorf("could not parse storage systems list: %v", err)
+	}
+
+	if len(systems) == 0 {
+		return "", errors.New("no storage systems found")
+	}
+
+	// Use the first system found. In direct connect, there is usually only one ("1").
+	d.config.ArrayID = systems[0].ID
+
+	Logc(ctx).WithField("ArrayID", d.config.ArrayID).Debug("Connected to storage system.")
+
+	return d.config.ArrayID, nil
 }
 
 // GetStorageSystem returns a struct detailing the storage system.
@@ -612,7 +655,7 @@ func (d Client) ListVolumes(ctx context.Context) ([]string, error) {
 }
 
 // GetVolume returns a volume structure from the array whose label matches the specified name. Use this method sparingly,
-// at most once per workflow, because the Web Services Proxy does not support server-side filtering so the only choice is to
+// at most once per workflow, because server-side filtering is limited so the only choice is to
 // read all volumes to find the one of interest. Most methods in this module operate on the returned VolumeEx structure, not
 // the volume name, to minimize the need for calling this method.
 func (d Client) GetVolume(ctx context.Context, name string) (VolumeEx, error) {
@@ -788,7 +831,7 @@ func (d Client) CreateVolume(
 		return VolumeEx{}, fmt.Errorf("API invocation failed. %v", err)
 	}
 
-	// Work around Web Services Proxy bug by re-reading the volume we (hopefully) just created
+	// Work around API limitation by re-reading the volume we (hopefully) just created
 	if response.StatusCode == http.StatusUnprocessableEntity {
 		Logc(ctx).Debugf("Volume create failed with 422 response, attempting to re-read volume %v", name)
 
@@ -1502,7 +1545,7 @@ func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 		// Volume is not already mapped, so map it now
 		mapping, err := d.mapVolume(ctx, volume, host)
 
-		// Work around Web Services Proxy bug by re-reading the map
+		// Work around API limitation by re-reading the map
 		if apiError, ok := err.(Error); ok && apiError.Code == http.StatusUnprocessableEntity {
 
 			Logc(ctx).Debug("Volume map failed with 422 response, attempting to re-read volume/map.")

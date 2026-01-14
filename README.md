@@ -1,13 +1,13 @@
 # SANtricity Go Client
 
-A Go client library for the NetApp SANtricity Web Services API, extracted from NetApp Trident.
+A Go client library for the NetApp SANtricity Web Services API, initially extracted from NetApp Trident and then improved.
 
 ## Features
 
 - Supports direct connection to E-Series arrays (no Web Services Proxy required).
-- Supports SANtricity API 11.90+.
+- Supports SANtricity API 11.90+ (manages Volume creation with new size/unit parameters).
 - Handles JWT/Bearer Token authentication.
-- Manages Volume creation with new size/unit parameters.
+- TLS options: load trusted TLS certificate chain, enable TLS certificate verification, disable certificate verification.
 
 ## Usage
 
@@ -62,8 +62,8 @@ go run cmd/santricity-cli/main.go --help
 # Example: Get system info
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get system
 
-# Example: Get system info with custom CA certificate
-go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --ca-cert /path/to/chain.pem --password mypassword get system
+# Example: Get system info with custom CA certificate and debug logging
+go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --ca-cert /path/to/chain.pem --password mypassword --debug get system
 
 # Example: List volumes
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get volumes
