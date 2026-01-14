@@ -25,6 +25,11 @@ func main() {
 		Use:   "santricity-cli",
 		Short: "CLI for NetApp SANtricity",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Validate flags
+			if caCert != "" && insecure {
+				log.Fatal("Error: --ca-cert and --insecure are mutually exclusive. Please choose one.")
+			}
+
 			// Initialize client
 			var caCertPEM string
 			if caCert != "" {

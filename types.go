@@ -53,27 +53,28 @@ type StorageSystem struct {
 		IPAddresses       []string `json:"ipAddresses"`
 		CertificateStatus string   `json:"certificateStatus"`
 	} `json:"controllers"`
-	DriveCount              int           `json:"driveCount"`
-	TrayCount               int           `json:"trayCount"`
-	TraceEnabled            bool          `json:"traceEnabled"`
-	Types                   string        `json:"types"`
-	Model                   string        `json:"model"`
-	MetaTags                []interface{} `json:"metaTags"`
-	HotSpareSize            string        `json:"hotSpareSize"`
-	UsedPoolSpace           string        `json:"usedPoolSpace"`
-	FreePoolSpace           string        `json:"freePoolSpace"`
-	UnconfiguredSpace       string        `json:"unconfiguredSpace"`
-	DriveTypes              []string      `json:"driveTypes"`
-	HostSpareCountInStandby int           `json:"hostSpareCountInStandby"`
-	HotSpareCount           int           `json:"hotSpareCount"`
-	HostSparesUsed          int           `json:"hostSparesUsed"`
-	BootTime                string        `json:"bootTime"`
-	FwVersion               string        `json:"fwVersion"`
-	AppVersion              string        `json:"appVersion"`
-	BootVersion             string        `json:"bootVersion"`
-	NvsramVersion           string        `json:"nvsramVersion"`
-	ChassisSerialNumber     string        `json:"chassisSerialNumber"`
-	AccessVolume            struct {
+	DriveCount                        int         `json:"driveCount"`
+	TrayCount                         int         `json:"trayCount"`
+	TraceEnabled                      bool        `json:"traceEnabled"`
+	Types                             string      `json:"types"`
+	Model                             string      `json:"model"`
+	MetaTags                          []KeyValues `json:"metaTags"`
+	HotSpareSize                      string      `json:"hotSpareSize"`
+	UsedPoolSpace                     string      `json:"usedPoolSpace"`
+	FreePoolSpace                     string      `json:"freePoolSpace"`
+	UnconfiguredSpace                 string      `json:"unconfiguredSpace"`
+	DriveTypes                        []string    `json:"driveTypes"`
+	HostSpareCountInStandby           int         `json:"hostSpareCountInStandby"`
+	HotSpareCount                     int         `json:"hotSpareCount"`
+	HostSparesUsed                    int         `json:"hostSparesUsed"`
+	ResourceProvisionedVolumesEnabled bool        `json:"resourceProvisionedVolumesEnabled"`
+	BootTime                          string      `json:"bootTime"`
+	FwVersion                         string      `json:"fwVersion"`
+	AppVersion                        string      `json:"appVersion"`
+	BootVersion                       string      `json:"bootVersion"`
+	NvsramVersion                     string      `json:"nvsramVersion"`
+	ChassisSerialNumber               string      `json:"chassisSerialNumber"`
+	AccessVolume                      struct {
 		Enabled               bool   `json:"enabled"`
 		VolumeHandle          int    `json:"volumeHandle"`
 		Capacity              string `json:"capacity"`
@@ -98,26 +99,31 @@ type StorageSystem struct {
 		Name                string `json:"name"`
 		ID                  string `json:"id"`
 	} `json:"accessVolume"`
-	UnconfiguredSpaceByDriveType struct {
-	} `json:"unconfiguredSpaceByDriveType"`
-	MediaScanPeriod                  int         `json:"mediaScanPeriod"`
-	DriveChannelPortDisabled         bool        `json:"driveChannelPortDisabled"`
-	RecoveryModeEnabled              bool        `json:"recoveryModeEnabled"`
-	AutoLoadBalancingEnabled         bool        `json:"autoLoadBalancingEnabled"`
-	HostConnectivityReportingEnabled bool        `json:"hostConnectivityReportingEnabled"`
-	RemoteMirroringEnabled           bool        `json:"remoteMirroringEnabled"`
-	FcRemoteMirroringState           string      `json:"fcRemoteMirroringState"`
-	AsupEnabled                      bool        `json:"asupEnabled"`
-	SecurityKeyEnabled               bool        `json:"securityKeyEnabled"`
-	ExternalKeyEnabled               bool        `json:"externalKeyEnabled"`
-	LastContacted                    string      `json:"lastContacted"`
-	DefinedPartitionCount            int         `json:"definedPartitionCount"`
-	SimplexModeEnabled               bool        `json:"simplexModeEnabled"`
-	EnabledManagementPorts           interface{} `json:"enabledManagementPorts"`
-	FreePoolSpaceAsString            string      `json:"freePoolSpaceAsString"`
-	HotSpareSizeAsString             string      `json:"hotSpareSizeAsString"`
-	UnconfiguredSpaceAsStrings       string      `json:"unconfiguredSpaceAsStrings"`
-	UsedPoolSpaceAsString            string      `json:"usedPoolSpaceAsString"`
+	UnconfiguredSpaceByDriveType     map[string]string `json:"unconfiguredSpaceByDriveType"`
+	MediaScanPeriod                  int               `json:"mediaScanPeriod"`
+	DriveChannelPortDisabled         bool              `json:"driveChannelPortDisabled"`
+	RecoveryModeEnabled              bool              `json:"recoveryModeEnabled"`
+	AutoLoadBalancingEnabled         bool              `json:"autoLoadBalancingEnabled"`
+	HostConnectivityReportingEnabled bool              `json:"hostConnectivityReportingEnabled"`
+	RemoteMirroringEnabled           bool              `json:"remoteMirroringEnabled"`
+	FcRemoteMirroringState           string            `json:"fcRemoteMirroringState"`
+	AsupEnabled                      bool              `json:"asupEnabled"`
+	SecurityKeyEnabled               bool              `json:"securityKeyEnabled"`
+	ExternalKeyEnabled               bool              `json:"externalKeyEnabled"`
+	LastContacted                    string            `json:"lastContacted"`
+	DefinedPartitionCount            int               `json:"definedPartitionCount"`
+	SimplexModeEnabled               bool              `json:"simplexModeEnabled"`
+	SupportedManagementPorts         []string          `json:"supportedManagementPorts"`
+	InvalidSystemConfig              bool              `json:"invalidSystemConfig"`
+	FreePoolSpaceAsString            string            `json:"freePoolSpaceAsString"`
+	HotSpareSizeAsString             string            `json:"hotSpareSizeAsString"`
+	UnconfiguredSpaceAsStrings       string            `json:"unconfiguredSpaceAsStrings"`
+	UsedPoolSpaceAsString            string            `json:"usedPoolSpaceAsString"`
+}
+
+type KeyValues struct {
+	Key       string   `json:"key"`
+	ValueList []string `json:"valueList"`
 }
 
 type VolumeGroupEx struct {

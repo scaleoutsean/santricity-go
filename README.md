@@ -59,7 +59,7 @@ A simple CLI is provided to interact with the API. This can be built from the `c
 # Get help
 go run cmd/santricity-cli/main.go --help
 
-# Example: Get system info
+# Example: Get system info (from /utils/about)
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get system
 
 # Example: Get system info with custom CA certificate and debug logging
