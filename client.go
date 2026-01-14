@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +36,7 @@ type ClientConfig struct {
 	ApiControllers []string
 	ApiPort        int
 	VerifyTLS      bool // If true, verify TLS certificate
+	CACertPEM      string
 	Username       string
 	Password       string
 	BearerToken    string // Optional JWT/Bearer token
@@ -159,11 +161,18 @@ func (d Client) InvokeAPI(
 		}
 
 		// Send the request
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: !d.config.VerifyTLS, // Allow certificate validation override
+			MinVersion:         MinTLSVersion,
+		}
+		if d.config.VerifyTLS && d.config.CACertPEM != "" {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM([]byte(d.config.CACertPEM))
+			tlsConfig.RootCAs = caCertPool
+		}
+
 		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !d.config.VerifyTLS, // Allow certificate validation override
-				MinVersion:         MinTLSVersion,
-			},
+			TLSClientConfig: tlsConfig,
 		}
 		client := &http.Client{
 			Transport: tr,
@@ -257,11 +266,18 @@ func (d Client) AboutInfo(ctx context.Context) (*AboutResponse, error) {
 		}
 
 		// Send the request
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: !d.config.VerifyTLS, // Allow certificate validation override
+			MinVersion:         MinTLSVersion,
+		}
+		if d.config.VerifyTLS && d.config.CACertPEM != "" {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM([]byte(d.config.CACertPEM))
+			tlsConfig.RootCAs = caCertPool
+		}
+
 		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !d.config.VerifyTLS, // Allow certificate validation override
-				MinVersion:         MinTLSVersion,
-			},
+			TLSClientConfig: tlsConfig,
 		}
 		client := &http.Client{
 			Transport: tr,

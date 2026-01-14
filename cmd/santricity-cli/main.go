@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	santricity "github.com/scaleoutsean/santricity-go"
 	"github.com/spf13/cobra"
@@ -12,6 +13,7 @@ var (
 	endpoint  string
 	username  string
 	password  string
+	caCert    string
 	insecure  bool
 	apiClient *santricity.Client
 	ctx       context.Context
@@ -23,12 +25,22 @@ func main() {
 		Short: "CLI for NetApp SANtricity",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			// Initialize client
+			var caCertPEM string
+			if caCert != "" {
+				certBytes, err := os.ReadFile(caCert)
+				if err != nil {
+					log.Fatalf("Error reading CA cert: %v", err)
+				}
+				caCertPEM = string(certBytes)
+			}
+
 			config := santricity.ClientConfig{
 				ApiControllers: []string{endpoint},
 				ApiPort:        8443,
 				Username:       username,
 				Password:       password,
 				VerifyTLS:      !insecure,
+				CACertPEM:      caCertPEM,
 			}
 			ctx = context.Background()
 			apiClient = santricity.NewAPIClient(ctx, config)
@@ -36,6 +48,7 @@ func main() {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&endpoint, "endpoint", "", "Controller IP/Hostname (required)")
+	rootCmd.PersistentFlags().StringVar(&caCert, "ca-cert", "", "Path to CA Certificate file")
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "admin", "Username")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password")
 	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification")

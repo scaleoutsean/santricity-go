@@ -62,6 +62,9 @@ go run cmd/santricity-cli/main.go --help
 # Example: Get system info
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get system
 
+# Example: Get system info with custom CA certificate
+go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --ca-cert /path/to/chain.pem --password mypassword get system
+
 # Example: List volumes
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get volumes
 ```
