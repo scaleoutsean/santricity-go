@@ -58,7 +58,6 @@ type ClientConfig struct {
 	HostType    string
 
 	DriverName    string
-	Telemetry     map[string]string
 	ConfigVersion int
 }
 
@@ -93,18 +92,6 @@ func NewAPIClient(ctx context.Context, config ClientConfig) *Client {
 	c.config.CompiledPoolNameSearchPattern = compiledRegex
 
 	return c
-}
-
-func (d Client) makeVolumeTags() []VolumeTag {
-
-	return []VolumeTag{
-		{"IF", d.config.Protocol},
-		{"version", d.config.Telemetry["version"]},
-		{"platform", OrchestratorTelemetry.Platform},
-		{"platformVersion", OrchestratorTelemetry.PlatformVersion},
-		{"plugin", d.config.Telemetry["plugin"]},
-		{"storagePrefix", d.config.Telemetry["storagePrefix"]},
-	}
 }
 
 // InvokeAPI makes a REST call. The body must be a marshaled JSON byte array (or nil).
@@ -807,8 +794,12 @@ func (d Client) CreateVolume(
 	}
 
 	// Copy static volume metadata and add fstype
-	tags := d.makeVolumeTags()
-	tags = append(tags, VolumeTag{"fstype", fstype})
+	tags := []VolumeTag{
+		{"fstype", fstype},
+	}
+	if d.config.Protocol != "" {
+		tags = append(tags, VolumeTag{"IF", d.config.Protocol})
+	}
 
 	// Set up the volume create request
 	request := VolumeCreateRequest{

@@ -11,6 +11,18 @@ A Go client library for the NetApp SANtricity Web Services API, initially extrac
 
 ## Usage
 
+### CLI
+
+```bash
+# Using Basic Auth
+./santricity-cli --endpoint 10.0.0.1 --username admin --password "password" get system --insecure
+
+# Using Bearer Token
+./santricity-cli --endpoint 10.0.0.1 --token "eyJ..." get system --insecure
+```
+
+### Library Usage
+
 ```go
 package main
 

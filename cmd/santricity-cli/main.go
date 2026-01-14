@@ -13,6 +13,7 @@ var (
 	endpoint  string
 	username  string
 	password  string
+	token     string
 	caCert    string
 	insecure  bool
 	debug     bool
@@ -28,6 +29,10 @@ func main() {
 			// Validate flags
 			if caCert != "" && insecure {
 				log.Fatal("Error: --ca-cert and --insecure are mutually exclusive. Please choose one.")
+			}
+
+			if token != "" && (cmd.Flags().Changed("username") || cmd.Flags().Changed("password")) {
+				log.Fatal("Error: --token is mutually exclusive with --username/--password.")
 			}
 
 			// Initialize client
@@ -51,6 +56,7 @@ func main() {
 				ApiPort:         8443,
 				Username:        username,
 				Password:        password,
+				BearerToken:     token,
 				VerifyTLS:       !insecure,
 				CACertPEM:       caCertPEM,
 				DebugTraceFlags: debugFlags,
@@ -69,6 +75,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&caCert, "ca-cert", "", "Path to CA Certificate file")
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "admin", "Username")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Bearer Token")
 	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 	rootCmd.MarkPersistentFlagRequired("endpoint")
