@@ -54,9 +54,6 @@ The library supports common storage management operations:
 ## CLI
 
 A simple CLI is provided to interact with the API. This can be built from the `cmd` directory.
-## License
-
-Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md) for attribution.
 
 ```sh
 # Get help
@@ -68,3 +65,8 @@ go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypa
 # Example: List volumes
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get volumes
 ```
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE.md) for attribution.
+
