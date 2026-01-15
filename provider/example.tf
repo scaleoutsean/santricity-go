@@ -43,26 +43,22 @@ resource "santricity_host" "pg_host_01" {
   name = "pg-01"
   type = "linux_dm_mp"
   host_group_id = santricity_host_group.pg_cluster.id
-  ports = [
-    { 
-      type  = "iscsi" 
-      port  = "iqn.1993-08.org.debian:01:postgres01" 
-      label = "pg01-iscsi"
-    }
-  ]
+  ports {
+    type  = "iscsi"
+    port  = "iqn.1993-08.org.debian:01:postgres01"
+    label = "pg01-iscsi"
+  }
 }
 
 resource "santricity_host" "pg_host_02" {
   name = "pg-02"
   type = "linux_dm_mp"
   host_group_id = santricity_host_group.pg_cluster.id
-  ports = [
-    { 
-      type  = "iscsi" 
-      port  = "iqn.1993-08.org.debian:01:postgres02" 
-      label = "pg02-iscsi"
-    }
-  ]
+  ports {
+    type  = "iscsi"
+    port  = "iqn.1993-08.org.debian:01:postgres02"
+    label = "pg02-iscsi"
+  }
 }
 
 resource "santricity_mapping" "pg_data_map" {
