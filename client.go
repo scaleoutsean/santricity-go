@@ -772,6 +772,7 @@ func (d Client) ensureVolumeTagsWithRetry(ctx context.Context, volumeRef string,
 // CreateVolume creates a volume (i.e. a LUN) on the array, and it returns the resulting VolumeEx structure.
 func (d Client) CreateVolume(
 	ctx context.Context, name string, volumeGroupRef string, size uint64, mediaType, fstype string,
+	raidLevel string, blockSize int, segmentSize int,
 ) (VolumeEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
@@ -782,6 +783,7 @@ func (d Client) CreateVolume(
 			"volumeGroupRef": volumeGroupRef,
 			"size":           size,
 			"mediaType":      mediaType,
+			"raidLevel":      raidLevel,
 		}
 		Logc(ctx).WithFields(fields).Debug(">>>> CreateVolume")
 		defer Logc(ctx).WithFields(fields).Debug("<<<< CreateVolume")
@@ -809,6 +811,12 @@ func (d Client) CreateVolume(
 		Size:           strconv.FormatUint(size/1024, 10),
 		SegmentSize:    128,
 		VolumeTags:     tags,
+		RaidLevel:      raidLevel, // Optional
+		BlockSize:      blockSize, // Optional
+	}
+
+	if segmentSize != 0 {
+		request.SegmentSize = segmentSize
 	}
 
 	jsonRequest, err := json.Marshal(request)

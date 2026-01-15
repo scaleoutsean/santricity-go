@@ -127,12 +127,15 @@ type KeyValues struct {
 }
 
 type VolumeGroupEx struct {
-	IsOffline      bool   `json:"offline"`
-	WorldWideName  string `json:"worldWideName"`
-	VolumeGroupRef string `json:"volumeGroupRef"`
-	Label          string `json:"label"`
-	FreeSpace      string `json:"freeSpace"`      // Documentation says this is an int but really it is a string!
-	DriveMediaType string `json:"driveMediaType"` // 'hdd', 'ssd'
+	IsOffline          bool   `json:"offline"`
+	WorldWideName      string `json:"worldWideName"`
+	VolumeGroupRef     string `json:"volumeGroupRef"`
+	Label              string `json:"label"`
+	FreeSpace          string `json:"freeSpace"`      // Documentation says this is an int but really it is a string!
+	DriveMediaType     string `json:"driveMediaType"` // 'hdd', 'ssd'
+	RaidLevel          string `json:"raidLevel"`
+	BlkSizeSupported   []int  `json:"blkSizeSupported"`
+	BlkSizeRecommended int    `json:"blkSizeRecommended"`
 }
 
 // Functions to allow sorting storage pools by free space
@@ -182,7 +185,10 @@ type VolumeEx struct {
 	VolumeSize     string       `json:"capacity"`
 	SegmentSize    int          `json:"segmentSize"`
 	VolumeRef      string       `json:"volumeRef"`
+	WorldWideName  string       `json:"worldWideName"`
 	VolumeGroupRef string       `json:"volumeGroupRef"`
+	RaidLevel      string       `json:"raidLevel"` // "raidDiskPool", "raid6", etc.
+	BlockSize      int          `json:"blkSize"`
 	Mappings       []LUNMapping `json:"listOfMappings"`
 	IsMapped       bool         `json:"mapped"`
 	VolumeTags     []VolumeTag  `json:"metadata"`
