@@ -1130,7 +1130,8 @@ func (d Client) EnsureHostForIQN(ctx context.Context, iqn string) (HostEx, error
 	}
 
 	// Create the new host in the group
-	return d.CreateHost(ctx, hostname, iqn, d.config.HostType, hostGroup)
+	// Default to iscsi for legacy EnsureHostForIQN behavior
+	return d.CreateHost(ctx, hostname, iqn, "iscsi", d.config.HostType, hostGroup)
 }
 
 func (d Client) createNameForHost(iqn string) string {
@@ -1162,7 +1163,8 @@ func (d Client) createNameForHost(iqn string) string {
 
 func (d Client) createNameForPort(host string) string {
 
-	suffix := "_port"
+	// Suffix should be _<portNumber>, defaulting to 0 for initial creation
+	suffix := "_0"
 	hostname := host
 
 	maxLength := maxNameLength - len(suffix)
@@ -1244,14 +1246,15 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 }
 
 // CreateHost creates a Host on the array. If a HostGroup is specified, the Host is placed in that group.
-func (d Client) CreateHost(ctx context.Context, name, iqn, hostType string, hostGroup HostGroup) (HostEx, error) {
+func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType string, hostGroup HostGroup) (HostEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
 			"Method":    "CreateHost",
 			"Type":      "Client",
 			"name":      name,
-			"iqn":       iqn,
+			"portID":    portID,
+			"portType":  portType,
 			"hostType":  hostType,
 			"hostGroup": hostGroup.Label,
 		}
@@ -1266,8 +1269,8 @@ func (d Client) CreateHost(ctx context.Context, name, iqn, hostType string, host
 	request.GroupID = hostGroup.ClusterRef
 	request.Ports = make([]HostPort, 1)
 	request.Ports[0].Label = d.createNameForPort(name)
-	request.Ports[0].Port = iqn
-	request.Ports[0].Type = "iscsi"
+	request.Ports[0].Port = portID
+	request.Ports[0].Type = portType
 
 	jsonRequest, err := json.Marshal(request)
 	if err != nil {
@@ -1275,9 +1278,9 @@ func (d Client) CreateHost(ctx context.Context, name, iqn, hostType string, host
 	}
 
 	Logc(ctx).WithFields(log.Fields{
-		"Name":  name,
-		"Group": hostGroup.Label,
-		"IQN":   iqn,
+		"Name":   name,
+		"Group":  hostGroup.Label,
+		"PortID": portID,
 	}).Debug("Creating host.")
 
 	// Create the host
@@ -1310,6 +1313,11 @@ func (d Client) CreateHost(ctx context.Context, name, iqn, hostType string, host
 }
 
 func (d Client) getBestIndexForHostType(ctx context.Context, hostType string) int {
+
+	// If the hostType is explicitly an integer (as a string), use it directly.
+	if val, err := strconv.Atoi(hostType); err == nil {
+		return val
+	}
 
 	hostTypeIndex := -1
 
@@ -1522,11 +1530,104 @@ func (d Client) CreateHostGroup(ctx context.Context, name string) (HostGroup, er
 	return hostGroup, nil
 }
 
+// GetHostByRef returns a Host structure for the given host reference.
+func (d Client) GetHostByRef(ctx context.Context, hostRef string) (HostEx, error) {
+
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method": "GetHostByRef",
+			"Type":   "Client",
+			"id":     hostRef,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> GetHostByRef")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< GetHostByRef")
+	}
+
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/hosts/"+hostRef)
+	if err != nil {
+		return HostEx{}, fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return HostEx{}, Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not get host %s", hostRef),
+		}
+	}
+
+	var host HostEx
+	if err := json.Unmarshal(responseBody, &host); err != nil {
+		return HostEx{}, fmt.Errorf("could not parse host data: %s; %v", string(responseBody), err)
+	}
+
+	return host, nil
+}
+
+// DeleteHostGroup deletes a HostGroup from the array.
+func (d Client) DeleteHostGroup(ctx context.Context, hostGroupRef string) error {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method":       "DeleteHostGroup",
+			"Type":         "Client",
+			"hostGroupRef": hostGroupRef,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> DeleteHostGroup")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< DeleteHostGroup")
+	}
+
+	url := fmt.Sprintf("/host-groups/%s", hostGroupRef)
+	response, _, err := d.InvokeAPI(ctx, nil, "DELETE", url)
+	if err != nil {
+		return fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		return Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not delete host group %s", hostGroupRef),
+		}
+	}
+
+	return nil
+}
+
+// GetHostGroupByRef returns a HostGroup structure for the given reference.
+func (d Client) GetHostGroupByRef(ctx context.Context, hostGroupRef string) (HostGroup, error) {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method":       "GetHostGroupByRef",
+			"Type":         "Client",
+			"hostGroupRef": hostGroupRef,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> GetHostGroupByRef")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< GetHostGroupByRef")
+	}
+
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/host-groups/"+hostGroupRef)
+	if err != nil {
+		return HostGroup{}, fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return HostGroup{}, Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not get host group %s", hostGroupRef),
+		}
+	}
+
+	var hostGroup HostGroup
+	if err := json.Unmarshal(responseBody, &hostGroup); err != nil {
+		return HostGroup{}, fmt.Errorf("could not parse host group data: %s; %v", string(responseBody), err)
+	}
+
+	return hostGroup, nil
+}
+
 // MapVolume maps a volume to the specified host and returns the resulting LUN mapping. If the volume is already mapped to the
 // specified host, either directly or to the containing host group, no action is taken. If the volume is mapped to a different host,
 // the method returns an error. Note that if the host is in a group, the volume will actually be mapped to the group instead of the
 // individual host.
-func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LUNMapping, error) {
+func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx, lun int) (LUNMapping, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
@@ -1534,6 +1635,7 @@ func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 			"Type":       "Client",
 			"volumeName": volume.Label,
 			"hostName":   host.Label,
+			"lun":        lun,
 		}
 		Logc(ctx).WithFields(fields).Debug(">>>> MapVolume")
 		defer Logc(ctx).WithFields(fields).Debug("<<<< MapVolume")
@@ -1542,7 +1644,7 @@ func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 	if !volume.IsMapped {
 
 		// Volume is not already mapped, so map it now
-		mapping, err := d.mapVolume(ctx, volume, host)
+		mapping, err := d.mapVolume(ctx, volume, host, lun)
 
 		// Work around API limitation by re-reading the map
 		if apiError, ok := err.(Error); ok && apiError.Code == http.StatusUnprocessableEntity {
@@ -1601,7 +1703,7 @@ func (d Client) MapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 
 // mapVolume maps a volume to a host with no checks for an existing mapping. If the host is in a host group, the volume is
 // mapped to the group instead. The resulting mapping structure is returned.
-func (d Client) mapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LUNMapping, error) {
+func (d Client) mapVolume(ctx context.Context, volume VolumeEx, host HostEx, lun int) (LUNMapping, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
@@ -1609,6 +1711,7 @@ func (d Client) mapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 			"Type":       "Client",
 			"volumeName": volume.Label,
 			"hostName":   host.Label,
+			"lun":        lun,
 		}
 		Logc(ctx).WithFields(fields).Debug(">>>> mapVolume")
 		defer Logc(ctx).WithFields(fields).Debug("<<<< mapVolume")
@@ -1624,6 +1727,7 @@ func (d Client) mapVolume(ctx context.Context, volume VolumeEx, host HostEx) (LU
 	request := VolumeMappingCreateRequest{
 		MappableObjectID: volume.VolumeRef,
 		TargetID:         targetID,
+		LunNumber:        lun,
 	}
 
 	jsonRequest, err := json.Marshal(request)

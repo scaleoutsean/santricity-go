@@ -6,7 +6,7 @@ import "fmt"
 
 var HostTypes = map[string]string{
 	"linux_atto":        "LnxTPGSALUA",
-	"linux_dm_mp":       "LnxALUA",
+	"linux_dm_mp":       "LnxDHALUA", // Updated to modern default (index 28)
 	"linux_mpp_rdac":    "LNX",
 	"linux_pathmanager": "LnxTPGSALUA_PM",
 	"linux_sf":          "LnxTPGSALUA_SF",

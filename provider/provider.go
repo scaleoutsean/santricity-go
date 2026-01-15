@@ -46,7 +46,10 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"santricity_volume": resourceVolume(),
+			"santricity_volume":     resourceVolume(),
+			"santricity_host":       resourceHost(),
+			"santricity_mapping":    resourceMapping(),
+			"santricity_host_group": resourceHostGroup(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,
