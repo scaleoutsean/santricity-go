@@ -46,6 +46,12 @@ func main() {
 			if token == "" {
 				token = os.Getenv("SANTRICITY_TOKEN")
 			}
+			if !cmd.Flags().Changed("insecure") && os.Getenv("SANTRICITY_INSECURE") == "true" {
+				insecure = true
+			}
+			if caCert == "" {
+				caCert = os.Getenv("SANTRICITY_CA_CERT")
+			}
 			if endpoint == "" {
 				log.Fatal("Error: --endpoint or SANTRICITY_ENDPOINT is required.")
 			}
