@@ -108,7 +108,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Bearer Token")
 	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
-	rootCmd.MarkPersistentFlagRequired("endpoint")
+	// rootCmd.MarkPersistentFlagRequired("endpoint")
 
 	var getCmd = &cobra.Command{
 		Use:   "get",

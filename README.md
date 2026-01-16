@@ -90,6 +90,7 @@ The CLI also supports setting credentials and endpoint via environment variables
 - `SANTRICITY_PASSWORD`: The password.
 - `SANTRICITY_TOKEN`: The bearer token (if using token auth).
 - `SANTRICITY_INSECURE`: Set to "true" to disable TLS verification.
+- `SANTRICITY_CA_CERT`: Set to "/path/to/chain.pem" to use own certificate chain.
 
 ## License
 
