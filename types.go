@@ -219,9 +219,10 @@ type HostType struct {
 }
 
 type HostPort struct {
-	Type  string `json:"type"`
-	Port  string `json:"port"`
-	Label string `json:"label"`
+	Type            string `json:"type"`
+	Port            string `json:"port"`
+	Label           string `json:"label"`
+	IscsiChapSecret string `json:"iscsiChapSecret,omitempty"`
 }
 
 type HostEx struct {
@@ -307,4 +308,9 @@ type IscsiTargetSettings struct {
 		} `json:"ipAddress"`
 		TCPListenPort int `json:"tcpListenPort"`
 	} `json:"portals"`
+}
+
+type VolumeExpansionRequest struct {
+	ExpansionSize string `json:"expansionSize"` // String format int64: "1073741824"
+	SizeUnit      string `json:"sizeUnit"`      // "bytes"
 }

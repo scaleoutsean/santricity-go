@@ -1,2 +1,9 @@
 santricity-cli
-.vs-code
+!cmd/santricity-cli/
+api_reference/
+./vscode/
+.vscode/
+main
+terraform-provider-santricity
+tests/live_test/live_tester
+

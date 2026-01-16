@@ -26,6 +26,30 @@ func main() {
 		Use:   "santricity-cli",
 		Short: "CLI for NetApp SANtricity",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Check environment variables if flags are not set
+			if endpoint == "" {
+				endpoint = os.Getenv("SANTRICITY_ENDPOINT")
+			}
+			if username == "admin" && os.Getenv("SANTRICITY_USERNAME") != "" {
+				// Only override default "admin" if env var is set.
+				// If user explicitly set --username, cobra handles that via pflags priority usually,
+				// but here we are checking the bound variable.
+				// Optimally we'd check cmd.Flags().Changed("username") but "admin" is default.
+				// Let's assume if Changed is false, use Env.
+				if !cmd.Flags().Changed("username") {
+					username = os.Getenv("SANTRICITY_USERNAME")
+				}
+			}
+			if password == "" {
+				password = os.Getenv("SANTRICITY_PASSWORD")
+			}
+			if token == "" {
+				token = os.Getenv("SANTRICITY_TOKEN")
+			}
+			if endpoint == "" {
+				log.Fatal("Error: --endpoint or SANTRICITY_ENDPOINT is required.")
+			}
+
 			// Validate flags
 			if caCert != "" && insecure {
 				log.Fatal("Error: --ca-cert and --insecure are mutually exclusive. Please choose one.")

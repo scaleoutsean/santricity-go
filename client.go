@@ -1085,6 +1085,46 @@ func (d Client) DeleteVolume(ctx context.Context, volume VolumeEx) error {
 	return nil
 }
 
+// ExpandVolume expands a volume to the specified size in bytes.
+// Note: This operation is asynchronous on the array.
+func (d Client) ExpandVolume(ctx context.Context, volumeRef string, newSizeInBytes int64) error {
+
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method": "ExpandVolume",
+			"Type":   "Client",
+			"ref":    volumeRef,
+			"size":   newSizeInBytes,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> ExpandVolume")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< ExpandVolume")
+	}
+
+	request := VolumeExpansionRequest{
+		ExpansionSize: fmt.Sprintf("%d", newSizeInBytes),
+		SizeUnit:      "bytes",
+	}
+
+	jsonRequest, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("could not marshal JSON request: %v; %v", request, err)
+	}
+
+	response, responseBody, err := d.InvokeAPI(ctx, jsonRequest, "POST", "/volumes/"+volumeRef+"/expand")
+	if err != nil {
+		return fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusAccepted {
+		return Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not expand volume %s: %s", volumeRef, string(responseBody)),
+		}
+	}
+
+	return nil
+}
+
 // EnsureHostForIQN handles automatic E-series Host and Host Group creation. Given the IQN of a host, this method
 // verifies whether a Host is already configured on the array. If so, the Host info is returned and no further action is
 // taken. If not, this method chooses a unique name for the Host and creates it on the array. Once the Host is created,
@@ -1131,7 +1171,7 @@ func (d Client) EnsureHostForIQN(ctx context.Context, iqn string) (HostEx, error
 
 	// Create the new host in the group
 	// Default to iscsi for legacy EnsureHostForIQN behavior
-	return d.CreateHost(ctx, hostname, iqn, "iscsi", d.config.HostType, hostGroup)
+	return d.CreateHost(ctx, hostname, iqn, "iscsi", d.config.HostType, "", hostGroup)
 }
 
 func (d Client) createNameForHost(iqn string) string {
@@ -1246,7 +1286,7 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 }
 
 // CreateHost creates a Host on the array. If a HostGroup is specified, the Host is placed in that group.
-func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType string, hostGroup HostGroup) (HostEx, error) {
+func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType, authSecret string, hostGroup HostGroup) (HostEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
@@ -1271,6 +1311,9 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	request.Ports[0].Label = d.createNameForPort(name)
 	request.Ports[0].Port = portID
 	request.Ports[0].Type = portType
+	if authSecret != "" {
+		request.Ports[0].IscsiChapSecret = authSecret
+	}
 
 	jsonRequest, err := json.Marshal(request)
 	if err != nil {

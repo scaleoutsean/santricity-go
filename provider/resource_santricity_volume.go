@@ -157,23 +157,17 @@ func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 
 	if d.HasChange("size_gb") {
 		newSizeGB := d.Get("size_gb").(int)
-		// We can only expand
-		// client.ResizeVolume(ctx, volumeObj, newSizeBytes)
-		// We need the volume object first.
 
-		// This requires retrieving the volume struct again.
-		// Construct a dummy VolumeEx with Ref is dangerous if method relies on other fields?
-		// ResizeVolume signature: func (d Client) ResizeVolume(ctx context.Context, volume VolumeEx, size uint64) error
-		// It uses volume.VolumeRef and volume.Label (logging).
-
-		volObj := santricity.VolumeEx{
-			VolumeRef: volID,
-			Label:     d.Get("name").(string),
+		// Round up size_gb to multiple of 4 (DDP requirement) to avoid drift
+		if remainder := newSizeGB % 4; remainder != 0 {
+			newSizeGB += 4 - remainder
+			d.Set("size_gb", newSizeGB)
 		}
 
-		newSizeBytes := uint64(newSizeGB) * 1024 * 1024 * 1024
+		// Use ExpandVolume which takes ref and size directly
+		newSizeBytes := int64(newSizeGB) * 1024 * 1024 * 1024
 
-		err := client.ResizeVolume(ctx, volObj, newSizeBytes)
+		err := client.ExpandVolume(ctx, volID, newSizeBytes)
 		if err != nil {
 			return diag.FromErr(err)
 		}

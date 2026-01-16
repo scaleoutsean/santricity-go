@@ -31,6 +31,7 @@ func resourceHost() *schema.Resource {
 			"ports": {
 				Type:     schema.TypeList,
 				Required: true,
+				ForceNew: true, // Changing ports (identity) requires replacement
 				MinItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -48,6 +49,12 @@ func resourceHost() *schema.Resource {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Description: "User label for port",
+						},
+						"chap_secret": {
+							Type:        schema.TypeString,
+							Optional:    true,
+							Sensitive:   true,
+							Description: "CHAP secret for the port (iscsi only).",
 						},
 					},
 				},
@@ -86,19 +93,23 @@ func resourceHostCreate(ctx context.Context, d *schema.ResourceData, m interface
 	firstPort := portsList[0].(map[string]interface{})
 	portType := firstPort["type"].(string)
 	portID := firstPort["port"].(string)
+	authSecret := ""
+	if v, ok := firstPort["chap_secret"]; ok {
+		authSecret = v.(string)
+	}
 
 	if portType != "iscsi" && portType != "fc" && portType != "nvme" && portType != "nvmeof" && portType != "ib" {
 		return diag.Errorf("Supported port types: 'iscsi', 'fc', 'nvme', 'nvmeof', 'ib'")
 	}
 
-	// CreateHost(ctx, name, portID, portType, hostType, hostGroup)
+	// CreateHost(ctx, name, portID, portType, hostType, authSecret, hostGroup)
 	hg := santricity.HostGroup{}
 	if v, ok := d.GetOk("host_group_id"); ok {
 		hg.ClusterRef = v.(string)
 		hg.Label = "tf-group-ref-" + v.(string)
 	}
 
-	host, err := client.CreateHost(ctx, name, portID, portType, hostType, hg)
+	host, err := client.CreateHost(ctx, name, portID, portType, hostType, authSecret, hg)
 	if err != nil {
 		return diag.FromErr(err)
 	}
