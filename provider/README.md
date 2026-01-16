@@ -20,6 +20,15 @@ Assuming a host dies or is due for hardware refresh:
 - `apply` will force removal of the offlined `server2`, and create `server2` with the new IQN/NQN. 
   - In the case of iSCSI clients where CHAP was set before, also update `chap_secret` with the new CHAP secret, or update your `iscsid.conf` with the old host's CHAP secret (if you have it)
 
+## Moving Volumes (Remapping)
+
+If you need to move a volume from one host to another (e.g., from `host-a` to `host-b`):
+
+1.  Locate the `santricity_mapping` resource for that volume in your Terraform configuration.
+2.  Change the `host_id` parameter from `santricity_host.host_a.id` to `santricity_host.host_b.id`.
+3.  Run `terraform apply`.
+4.  Terraform will detect the change to the immutable `host_id` field. It will destroy the existing mapping (Unmap from A) and immediately create a new mapping (Map to B).
+
 ## Known Limitations
 
 - iSCSI only
@@ -27,7 +36,9 @@ Assuming a host dies or is due for hardware refresh:
 
 ## Live Test
 
-This does stuff to your box. Find a DDP that has 10 GIB of spare capacity and run these tests to 
+This does stuff to your box (creates and removes small volumes and hosts/host groups) to confirm it works. Volumes, hosts, IQNs/NQNs, and host groups have randomized names to avoid naming conflicts.
+
+Find a DDP that has 10 GiB of spare capacity and run these tests to try it. 
 
 ```sh
 cd tests/live_test
