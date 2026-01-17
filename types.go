@@ -248,6 +248,8 @@ type HostExInitiatorNodeName struct {
 type HostExScsiNodeName struct {
 	IoInterfaceType string `json:"ioInterfaceType"`
 	IscsiNodeName   string `json:"iscsiNodeName"`
+	NvmeNodeName    string `json:"nvmeNodeName,omitempty"`
+	RemoteNodeWWN   string `json:"remoteNodeWWN,omitempty"`
 }
 
 type HostGroupCreateRequest struct {

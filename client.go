@@ -1268,11 +1268,29 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 
 				return host, nil
 
+			} else if f.NodeName.IoInterfaceType == "nvmeof" && f.NodeName.NvmeNodeName == iqn {
+
+				Logc(ctx).WithFields(log.Fields{
+					"Name": host.Label,
+					"NQN":  iqn,
+				}).Debug("Found host.")
+
+				return host, nil
+
 			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "iscsi" && f.InitiatorNodeName.NodeName.IscsiNodeName == iqn {
 
 				Logc(ctx).WithFields(log.Fields{
 					"Name": host.Label,
 					"IQN":  iqn,
+				}).Debug("Found host.")
+
+				return host, nil
+
+			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "nvmeof" && f.InitiatorNodeName.NodeName.NvmeNodeName == iqn {
+
+				Logc(ctx).WithFields(log.Fields{
+					"Name": host.Label,
+					"NQN":  iqn,
 				}).Debug("Found host.")
 
 				return host, nil
