@@ -82,7 +82,18 @@ spec:
                   fieldPath: spec.nodeName
             - name: SANTRICITY_ENDPOINT
               value: "https://10.10.10.10:8443/devmgr/v2" # EDIT ME
-            # Credentials should be secrets in prod
+            - name: SANTRICITY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: santricity-csi-credentials
+                  key: username
+                  optional: true
+            - name: SANTRICITY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: santricity-csi-credentials
+                  key: password
+                  optional: true
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/

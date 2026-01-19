@@ -16,7 +16,7 @@ import (
 
 const (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.1"
+	Version    = "0.1.2"
 )
 
 type Driver struct {
@@ -42,6 +42,13 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 	// Fallback to Env vars if flags are empty, similar to CLI
 	if apiUrl == "" {
 		apiUrl = os.Getenv("SANTRICITY_ENDPOINT")
+	}
+	if user == "admin" && os.Getenv("SANTRICITY_USERNAME") != "" {
+		// "admin" is the flag default, but if env var is set, prefer that
+		user = os.Getenv("SANTRICITY_USERNAME")
+	}
+	if password == "" {
+		password = os.Getenv("SANTRICITY_PASSWORD")
 	}
 
 	if apiUrl != "" {

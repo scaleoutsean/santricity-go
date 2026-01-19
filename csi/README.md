@@ -28,8 +28,13 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
 ## Deployment
 
 1. **Configure Credentials**:
-   Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint.
-   *(In a production environment, use Kubernetes Secrets for sensitive data)*.
+   Edit `csi/deploy/secret-example.yaml` with your SANtricity username and password, then apply it:
+   ```bash
+   kubectl apply -f csi/deploy/secret-example.yaml
+   ```
+   If you convert password to `base64`, remember to strip (or not include) newline character from the string before conversion.
+   
+   Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint (`SANTRICITY_ENDPOINT`).
 
 2. **Deploy Manifests**:
 
