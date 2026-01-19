@@ -51,6 +51,8 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
+            # Ensure the specific csi- tag (e.g. csi-v0.1.0) is used as the image tag
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=sha,format=short
 
