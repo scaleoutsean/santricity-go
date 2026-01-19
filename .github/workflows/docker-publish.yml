@@ -3,10 +3,16 @@ name: Build and Publish CSI Driver
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'csi/**'
+      - '.github/workflows/docker-publish.yml'
     # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+    tags: [ 'csi-v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'csi/**'
+      - '.github/workflows/docker-publish.yml'
 
 env:
   REGISTRY: ghcr.io
