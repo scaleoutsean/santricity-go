@@ -81,9 +81,9 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// API call
 	// Note: protocol is configured in client config implicitly or unnecessary for volume creation itself unless mapping.
 	// Library CreateVolume signature:
-	// func (d Client) CreateVolume(ctx context.Context, name string, volumeGroupRef string, size uint64, mediaType, fstype string, raidLevel string, blockSize int, segmentSize int) (VolumeEx, error)
+	// func (d Client) CreateVolume(ctx context.Context, name string, volumeGroupRef string, size uint64, mediaType, fstype string, raidLevel string, blockSize int, segmentSize int, extraTags map[string]string) (VolumeEx, error)
 
-	vol, err := client.CreateVolume(ctx, name, poolID, sizeBytes, "hdd", "xfs", raidLevel, 0, 0)
+	vol, err := client.CreateVolume(ctx, name, poolID, sizeBytes, "hdd", "xfs", raidLevel, 0, 0, nil)
 	if err != nil {
 		return diag.FromErr(err)
 	}

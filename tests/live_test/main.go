@@ -115,7 +115,7 @@ func runTestA(ctx context.Context, htCode string) {
 	// Create Volume
 	volName := fmt.Sprintf("%s_volA", testPrefix)
 	sizeBytes := uint64(4 * 1024 * 1024 * 1024)
-	vol, err := client.CreateVolume(ctx, volName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0)
+	vol, err := client.CreateVolume(ctx, volName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0, nil)
 	if err != nil {
 		panic(fmt.Errorf("CreateVolume failed: %v", err))
 	}
@@ -182,7 +182,7 @@ func runTestB(ctx context.Context, htCode string) {
 	for _, id := range ids {
 		vName := fmt.Sprintf("%s_volB_%s", testPrefix, id)
 		sizeBytes := uint64(4 * 1024 * 1024 * 1024)
-		v, err := client.CreateVolume(ctx, vName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0)
+		v, err := client.CreateVolume(ctx, vName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -235,7 +235,7 @@ func runTestC(ctx context.Context, htCode string) {
 	fmt.Println("\n=== Test C: Host Replacement Scenario ===")
 	vName := fmt.Sprintf("%s_volC", testPrefix)
 	sizeBytes := uint64(4 * 1024 * 1024 * 1024)
-	vol, err := client.CreateVolume(ctx, vName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0)
+	vol, err := client.CreateVolume(ctx, vName, poolID, sizeBytes, "hdd", "xfs", "raid6", 0, 0, nil)
 	if err != nil {
 		panic(err)
 	}
