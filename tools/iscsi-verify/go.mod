@@ -1,4 +1,4 @@
-module github.com/scaleoutsean/trident-santricity/tools/iscsi-verify
+module github.com/scaleoutsean/santricity-go/tools/iscsi-verify
 
 go 1.25.2
 

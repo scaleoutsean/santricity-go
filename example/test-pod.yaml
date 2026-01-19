@@ -1,0 +1,30 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: basic-test-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: santricity-nvme-raid1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: basic-test-pod
+spec:
+  containers:
+    - name: alpine
+      image: alpine:latest
+      # Keep the pod running and verify write access
+      command: ["/bin/sh", "-c"]
+      args: ["echo 'Hello from SANtricity CSI' > /data/test_file && echo 'Write successful' && sleep 3600"]
+      volumeMounts:
+        - name: my-volume
+          mountPath: /data
+  volumes:
+    - name: my-volume
+      persistentVolumeClaim:
+        claimName: basic-test-pvc

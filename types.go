@@ -131,8 +131,9 @@ type VolumeGroupEx struct {
 	WorldWideName      string `json:"worldWideName"`
 	VolumeGroupRef     string `json:"volumeGroupRef"`
 	Label              string `json:"label"`
-	FreeSpace          string `json:"freeSpace"`      // Documentation says this is an int but really it is a string!
-	DriveMediaType     string `json:"driveMediaType"` // 'hdd', 'ssd'
+	FreeSpace          string `json:"freeSpace"`         // Documentation says this is an int but really it is a string!
+	DriveMediaType     string `json:"driveMediaType"`    // 'hdd', 'ssd'
+	DrivePhysicalType  string `json:"drivePhysicalType"` // 'sas', 'nvme4k', etc.
 	RaidLevel          string `json:"raidLevel"`
 	BlkSizeSupported   []int  `json:"blkSizeSupported"`
 	BlkSizeRecommended int    `json:"blkSizeRecommended"`

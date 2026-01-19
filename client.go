@@ -48,6 +48,9 @@ type ClientConfig struct {
 	// Host Connectivity
 	HostDataIP string //for iSCSI with multipathing this can be either IP or host
 
+	// Volume Filtering
+	IncludeRepositoryVolumes bool // If true, include repository volumes (like repos_*) in GetVolumes output
+
 	// Internal Config Variables
 	ArrayID                       string // Unique ID for array
 	CompiledPoolNameSearchPattern *regexp.Regexp
@@ -92,6 +95,11 @@ func NewAPIClient(ctx context.Context, config ClientConfig) *Client {
 	c.config.CompiledPoolNameSearchPattern = compiledRegex
 
 	return c
+}
+
+// SetIncludeRepositoryVolumes allows toggling the display of repository volumes
+func (c *Client) SetIncludeRepositoryVolumes(include bool) {
+	c.config.IncludeRepositoryVolumes = include
 }
 
 // InvokeAPI makes a REST call. The body must be a marshaled JSON byte array (or nil).
@@ -602,10 +610,22 @@ func (d Client) GetVolumes(ctx context.Context) ([]VolumeEx, error) {
 		}
 	}
 
-	volumes := make([]VolumeEx, 0)
-	err = json.Unmarshal(responseBody, &volumes)
+	rawVolumes := make([]VolumeEx, 0)
+	err = json.Unmarshal(responseBody, &rawVolumes)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse volume data: %s. %v", string(responseBody), err)
+	}
+
+	var volumes []VolumeEx
+	if d.config.IncludeRepositoryVolumes {
+		volumes = rawVolumes
+	} else {
+		volumes = make([]VolumeEx, 0, len(rawVolumes))
+		for _, v := range rawVolumes {
+			if !strings.HasPrefix(v.Label, "repos_") {
+				volumes = append(volumes, v)
+			}
+		}
 	}
 
 	Logc(ctx).WithField("Count", len(volumes)).Debug("Read volumes.")
@@ -772,7 +792,7 @@ func (d Client) ensureVolumeTagsWithRetry(ctx context.Context, volumeRef string,
 // CreateVolume creates a volume (i.e. a LUN) on the array, and it returns the resulting VolumeEx structure.
 func (d Client) CreateVolume(
 	ctx context.Context, name string, volumeGroupRef string, size uint64, mediaType, fstype string,
-	raidLevel string, blockSize int, segmentSize int,
+	raidLevel string, blockSize int, segmentSize int, extraTags map[string]string,
 ) (VolumeEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
@@ -801,6 +821,11 @@ func (d Client) CreateVolume(
 	}
 	if d.config.Protocol != "" {
 		tags = append(tags, VolumeTag{"IF", d.config.Protocol})
+	}
+
+	// Add extra tags (like PVC metadata)
+	for k, v := range extraTags {
+		tags = append(tags, VolumeTag{k, v})
 	}
 
 	// Set up the volume create request

@@ -127,10 +127,12 @@ func main() {
 		},
 	}
 
+	var showRepoVols bool
 	var getVolumesCmd = &cobra.Command{
 		Use:   "volumes",
 		Short: "List volumes",
 		Run: func(cmd *cobra.Command, args []string) {
+			apiClient.SetIncludeRepositoryVolumes(showRepoVols)
 			vols, err := apiClient.GetVolumes(ctx)
 			if err != nil {
 				log.Fatalf("Error getting volumes: %v", err)
@@ -140,9 +142,30 @@ func main() {
 			}
 		},
 	}
+	getVolumesCmd.Flags().BoolVar(&showRepoVols, "show-repo-vols", false, "Show internal repository volumes")
+
+	var getPoolsCmd = &cobra.Command{
+		Use:   "pools",
+		Short: "List storage pools",
+		Run: func(cmd *cobra.Command, args []string) {
+			pools, err := apiClient.GetVolumePools(ctx, "", 0, "")
+			if err != nil {
+				log.Fatalf("Error getting pools: %v", err)
+			}
+			for _, p := range pools {
+				log.Printf("Pool: %s", p.Label)
+				log.Printf("  ID: %s", p.VolumeGroupRef)
+				log.Printf("  Media: %s", p.DriveMediaType)
+				log.Printf("  PhyType: %s", p.DrivePhysicalType)
+				log.Printf("  RAID: %s", p.RaidLevel)
+				log.Printf("  Free: %s", p.FreeSpace)
+			}
+		},
+	}
 
 	getCmd.AddCommand(getSystemCmd)
 	getCmd.AddCommand(getVolumesCmd)
+	getCmd.AddCommand(getPoolsCmd)
 	rootCmd.AddCommand(getCmd)
 
 	if err := rootCmd.Execute(); err != nil {

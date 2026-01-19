@@ -1,0 +1,52 @@
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: santricity.scaleoutsean.github.io
+spec:
+  attachRequired: true
+  podInfoOnMount: true
+  fsGroupPolicy: ReadWriteOnceWithFSType # Critical for RWO volumes to respect securityContext.fsGroup
+  volumeLifecycleModes:
+  - Persistent
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: santricity-nvme-raid1
+provisioner: santricity.scaleoutsean.github.io
+parameters:
+  poolID: "0000000000000000000000000000000000000000" # Replace with actual DDP Pool Ref/ID
+  mediaType: "nvme"           
+  fsType: "xfs"              
+  raidLevel: "raid1"         # DDP supports RAID1 and RAID6 equivalent protection
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: santricity-nvme-raid6
+provisioner: santricity.scaleoutsean.github.io
+parameters:
+  poolID: "0000000000000000000000000000000000000000" # Replace with actual DDP Pool Ref/ID
+  mediaType: "nvme"           
+  fsType: "xfs"          
+  raidLevel: "raid6"     
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: santricity-hdd-raid6
+provisioner: santricity.scaleoutsean.github.io
+parameters:
+  poolID: "0000000000000000000000000000000000000000" # Replace with actual DDP Pool Ref/ID
+  mediaType: "hdd"           
+  fsType: "xfs"          
+  raidLevel: "raid6"     
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true

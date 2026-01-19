@@ -3,6 +3,8 @@ santricity-cli
 api_reference/
 ./vscode/
 .vscode/
+santricity-csi
+tools/iscsi-verify/iscsi-verify
 main
 terraform-provider-santricity
 tests/live_test/live_tester
