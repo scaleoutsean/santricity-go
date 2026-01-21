@@ -18,7 +18,7 @@ import (
 
 const (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.4"
+	Version    = "0.1.5"
 )
 
 type Driver struct {
@@ -99,9 +99,12 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 			Password:       password,
 			ApiPort:        apiPort,
 			// For Embedded Web Services (on-controller), ArrayID is typically "1".
-			// If we are talking to a WSP Proxy, this might need to be the array WWN/ID.
-			// Assuming direct connection to controller:
 			ArrayID: "1",
+			DebugTraceFlags: map[string]bool{
+				"method": true,
+				"api":    true,
+			},
+			VerifyTLS: false, // Explicitly disable verification for lab use
 		}
 
 		client = santricity.NewAPIClient(context.Background(), config)
