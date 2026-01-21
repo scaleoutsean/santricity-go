@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings" // Added
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/dell/goiscsi"
@@ -13,6 +14,32 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 )
+
+// GetISCSIInitiatorName reads the local initiator name from /etc/iscsi/initiatorname.iscsi
+// Exported for main.go
+func GetISCSIInitiatorName() (string, error) {
+	return getISCSIInitiatorName()
+}
+
+// getISCSIInitiatorName reads the local initiator name from /etc/iscsi/initiatorname.iscsi
+func getISCSIInitiatorName() (string, error) {
+	// Standard location
+	path := "/etc/iscsi/initiatorname.iscsi"
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %v", path, err)
+	}
+
+	// Parse file content: InitiatorName=iqn.xxxx...
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "InitiatorName=") {
+			return strings.TrimPrefix(line, "InitiatorName="), nil
+		}
+	}
+	return "", fmt.Errorf("InitiatorName not found in %s", path)
+}
 
 func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRequest) (*csi.NodeStageVolumeResponse, error) {
 	// 1. Parse Request

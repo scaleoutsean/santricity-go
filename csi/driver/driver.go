@@ -19,7 +19,7 @@ import (
 
 const (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.8"
+	Version    = "0.1.9"
 )
 
 type Driver struct {

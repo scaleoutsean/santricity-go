@@ -57,6 +57,22 @@ func handle() {
 		isNode = true
 	}
 
+	// If running as Node, try to auto-detect IQN and override nodeID
+	if isNode {
+		if iqn, err := driver.GetISCSIInitiatorName(); err == nil && iqn != "" {
+			klog.Infof("Auto-detected IQN: %s. Using as Node ID.", iqn)
+			// Reset the driver instance or just update the field?
+			// Since driver struct is private fields, we need a setter or just recreate it?
+			// Driver struct has nodeID private.
+			// Let's just recreate it or better yet, make NewDriver smart?
+			// But NewDriver doesn't know 'isNode' yet.
+			// Recreating is safest.
+			drv, _ = driver.NewDriver(iqn, *endpoint, *apiUrl, *userId, *password)
+		} else {
+			klog.Warningf("Could not auto-detect iSCSI IQN: %v. Using provided NodeID: %s", err, *nodeID)
+		}
+	}
+
 	if err := drv.Run(isController, isNode); err != nil {
 		klog.Error(err.Error())
 		os.Exit(1)
