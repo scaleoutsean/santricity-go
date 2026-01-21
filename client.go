@@ -151,6 +151,7 @@ func (d Client) InvokeAPI(
 		}
 
 		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json")
 		request.Header.Set("X-Request-ID", fmt.Sprint(ctx.Value(ContextKeyRequestID)))
 
 		if d.config.BearerToken != "" {

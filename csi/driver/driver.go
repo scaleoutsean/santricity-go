@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	santricity "github.com/scaleoutsean/santricity-go"
@@ -18,7 +19,7 @@ import (
 
 const (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.5"
+	Version    = "0.1.6"
 )
 
 type Driver struct {
@@ -108,6 +109,21 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 		}
 
 		client = santricity.NewAPIClient(context.Background(), config)
+
+		// Verify connectivity immediately
+		klog.Info("Verifying SANtricity API connectivity...")
+		checkCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		sys, err := client.GetStorageSystem(checkCtx)
+		if err != nil {
+			klog.Errorf("Connectivity Check Failed: %v", err)
+			// Optional: Dump more info or panic?
+			// Panic might be good to restart the pod quickly if config is wrong
+			// But for now purely logging is safer to debug
+		} else {
+			klog.Infof("Connectivity Check Passed: Connected to array %s (ID: %s)", sys.Name, sys.ID)
+		}
 	} else {
 		klog.Warning("No valid SANtricity API URL provided. Controller operations will fail.")
 	}
