@@ -5,8 +5,8 @@ A Go client library for the NetApp SANtricity Web Services API, initially extrac
 ## Features
 
 - Supports direct connection to E-Series arrays (no Web Services Proxy required).
-- Supports SANtricity API 11.90+ (manages Volume creation with new size/unit parameters).
 - Handles JWT/Bearer Token authentication.
+- Supports SANtricity API 11.90+ with iSCSI and NVMe/ROCE host-side interfaces.
 - TLS options: load trusted TLS certificate chain, enable TLS certificate verification, disable certificate verification.
 
 ## Usage

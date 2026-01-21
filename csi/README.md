@@ -5,8 +5,9 @@ This is a Container Storage Interface (CSI) driver for NetApp SANtricity storage
 ## Features
 
 - **Dynamic Provisioning**: Create volumes on demand.
-- **iSCSI Connectivity**: Automatically mounts volumes to pods using iSCSI.
+- **iSCSI and NVMe/RoCE Connectivity**: Automatically mounts volumes to pods using iSCSI or NVMe/RoCE (support built in, needs testing)
 - **Volume Expansion**: Resizing of PVCs.
+- **Volume Metadata Tagging**: PVC metadata are stored in SANtricity volume metadata.
 - **DDP Support**: Optimized for Dynamic Disk Pools (DDP) with RAID1/RAID6 volume support.
 
 ## Prerequisites
@@ -36,7 +37,13 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
    
    Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint (`SANTRICITY_ENDPOINT`).
 
-2. **Deploy Manifests**:
+2. **Verify Kubelet Path (Node Service)**:
+   The default `csi/deploy/node.yaml` uses `/var/lib/kubelet`. If you are using a distribution with a different path, you **must** update the `hostPath` entries in `node.yaml`.
+   *   **k0s**: `/var/lib/k0s/kubelet`
+   *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
+   *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
+
+3. **Deploy Manifests**:
 
    ```bash
    kubectl apply -f csi/deploy/csi-driver.yaml
@@ -60,6 +67,7 @@ This driver currently supports **iSCSI** and **NVMe-oF (RoCE)**.
 
 **Limitation: One Protocol per Cluster**
 Due to the way hosts are identified (Single IQN per node for iSCSI, Single NQN per node for NVMe), a Kubernetes node should be configured to strictly use **one** data protocol for CSI traffic. Mixing protocols on the same node (e.g., some pods using iSCSI and others using NVMe) is not supported, as it would require duplicate or complex host registrations on the array.
+If you can group worker nodes by protocol type, you could potentially create and use two "virtual" backends to the same storage pool.
 
 - **iSCSI**: Uses the node's Initiator IQN (`/etc/iscsi/initiatorname.iscsi`).
 - **NVMe-oF**: Uses the node's Host NQN (`/etc/nvme/hostnqn`).
@@ -100,4 +108,12 @@ kubectl logs -f deployment/santricity-csi-controller -n kube-system -c csi-drive
 Check the logs of the node plugin on a specific node:
 ```bash
 kubectl logs -f daemonset/santricity-csi-node -n kube-system
+```
+
+## Versioning and releases
+
+```sh
+vim ./csi/driver/driver.go
+git tag csi-v<version>
+git push origin master --tags
 ```

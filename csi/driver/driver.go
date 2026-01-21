@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -52,12 +54,50 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 	}
 
 	if apiUrl != "" {
+		// Clean the API URL. The library expects just the Hostname/IP in ApiControllers.
+		// It constructs the URL itself using strict "https" and "/devmgr/v2".
+		var apiHost string
+		var apiPort int = 8443
+
+		// Handle "https://" prefix if present
+		if strings.Contains(apiUrl, "://") {
+			if u, err := url.Parse(apiUrl); err == nil {
+				apiHost = u.Hostname()
+				if p := u.Port(); p != "" {
+					if portNum, err := strconv.Atoi(p); err == nil {
+						apiPort = portNum
+					}
+				}
+			} else {
+				klog.Warningf("Failed to parse API URL %s, using as raw string", apiUrl)
+				apiHost = apiUrl
+			}
+		} else {
+			// Handle "host:port" or just "host"
+			if host, port, err := net.SplitHostPort(apiUrl); err == nil {
+				apiHost = host
+				if portNum, err := strconv.Atoi(port); err == nil {
+					apiPort = portNum
+				}
+			} else {
+				apiHost = apiUrl
+			}
+		}
+
+		if apiHost == "" {
+			// Fallback if parsing failed mysteriously or resulted in empty
+			klog.Warning("Parsed API host is empty, reverting to full provided string")
+			apiHost = apiUrl
+		}
+
+		klog.Infof("Initializing SANtricity Client with Host: %s, Port: %d", apiHost, apiPort)
+
 		// Basic configuration for the client
 		config := santricity.ClientConfig{
-			ApiControllers: []string{apiUrl},
+			ApiControllers: []string{apiHost},
 			Username:       user,
 			Password:       password,
-			ApiPort:        8443,
+			ApiPort:        apiPort,
 		}
 
 		client = santricity.NewAPIClient(context.Background(), config)

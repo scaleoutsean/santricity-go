@@ -102,14 +102,20 @@ spec:
       volumes:
         - name: kubelet-dir
           hostPath:
+            # Standard: /var/lib/kubelet
+            # k0s: /var/lib/k0s/kubelet
+            # k3s: /var/lib/rancher/k3s/agent/kubelet
+            # snap: /var/snap/microk8s/common/var/lib/kubelet
             path: /var/lib/kubelet
             type: Directory
         - name: plugin-dir
           hostPath:
+            # Adjust prefix matching kubelet-dir above
             path: /var/lib/kubelet/plugins/santricity.scaleoutsean.github.io/
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
+            # Adjust prefix matching kubelet-dir above
             path: /var/lib/kubelet/plugins_registry/
             type: Directory
         - name: device-dir
