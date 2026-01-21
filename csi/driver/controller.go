@@ -223,10 +223,14 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	}
 
 	// 1. Get Host for NodeID (IQN)
-	host, err := d.client.GetHostForIQN(ctx, nodeID)
+	// The nodeID passed by CSI is typically the Node ID reported by NodeGetInfo.
+	// We need to ensure the host exists on the array.
+	klog.Infof("Ensuring host exists for IQN: %s", nodeID)
+	host, err := d.client.EnsureHostForIQN(ctx, nodeID)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "Host with IQN %s not found: %v", nodeID, err)
+		return nil, status.Errorf(codes.Internal, "Failed to ensure host for IQN %s: %v", nodeID, err)
 	}
+	klog.Infof("Found/Created Host %s (%s)", host.Label, host.HostRef)
 
 	// 2. Map Volume
 	vol, err := d.client.GetVolumeByRef(ctx, volID)
