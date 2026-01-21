@@ -81,7 +81,10 @@ func NewAPIClient(ctx context.Context, config ClientConfig) *Client {
 	}
 
 	// Initialize internal config variables
-	c.config.ArrayID = ""
+	// Do NOT blindly reset ArrayID - respect what resides in config if passed by caller (e.g. for EWS)
+	if c.config.ArrayID == "" {
+		c.config.ArrayID = ""
+	}
 
 	compiledRegex, err := regexp.Compile(c.config.PoolNameSearchPattern)
 	if err != nil {
