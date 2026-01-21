@@ -98,6 +98,10 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 			Username:       user,
 			Password:       password,
 			ApiPort:        apiPort,
+			// For Embedded Web Services (on-controller), ArrayID is typically "1".
+			// If we are talking to a WSP Proxy, this might need to be the array WWN/ID.
+			// Assuming direct connection to controller:
+			ArrayID: "1",
 		}
 
 		client = santricity.NewAPIClient(context.Background(), config)
