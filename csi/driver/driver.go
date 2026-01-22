@@ -19,7 +19,7 @@ import (
 
 const (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.10"
+	Version    = "0.1.11"
 )
 
 type Driver struct {
@@ -57,45 +57,57 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 	if apiUrl != "" {
 		// Clean the API URL. The library expects just the Hostname/IP in ApiControllers.
 		// It constructs the URL itself using strict "https" and "/devmgr/v2".
-		var apiHost string
+		var apiHosts []string
 		var apiPort int = 8443
 
-		// Handle "https://" prefix if present
-		if strings.Contains(apiUrl, "://") {
-			if u, err := url.Parse(apiUrl); err == nil {
-				apiHost = u.Hostname()
-				if p := u.Port(); p != "" {
-					if portNum, err := strconv.Atoi(p); err == nil {
+		// Split by comma to support multiple controllers
+		rawEndpoints := strings.Split(apiUrl, ",")
+		for _, rawEndpoint := range rawEndpoints {
+			endpoint := strings.TrimSpace(rawEndpoint)
+			if endpoint == "" {
+				continue
+			}
+
+			var host string
+
+			// Handle "https://" prefix if present
+			if strings.Contains(endpoint, "://") {
+				if u, err := url.Parse(endpoint); err == nil {
+					host = u.Hostname()
+					// Update port if present (first one wins or overwrites ideally they are same)
+					if p := u.Port(); p != "" {
+						if portNum, err := strconv.Atoi(p); err == nil {
+							apiPort = portNum
+						}
+					}
+				} else {
+					klog.Warningf("Failed to parse API URL %s, using as raw string", endpoint)
+					host = endpoint
+				}
+			} else {
+				// Handle "host:port" or just "host"
+				if h, port, err := net.SplitHostPort(endpoint); err == nil {
+					host = h
+					if portNum, err := strconv.Atoi(port); err == nil {
 						apiPort = portNum
 					}
+				} else {
+					host = endpoint
 				}
-			} else {
-				klog.Warningf("Failed to parse API URL %s, using as raw string", apiUrl)
-				apiHost = apiUrl
 			}
-		} else {
-			// Handle "host:port" or just "host"
-			if host, port, err := net.SplitHostPort(apiUrl); err == nil {
-				apiHost = host
-				if portNum, err := strconv.Atoi(port); err == nil {
-					apiPort = portNum
-				}
-			} else {
-				apiHost = apiUrl
+
+			if host == "" {
+				klog.Warningf("Parsed API host from '%s' is empty, reverting to full provided string", endpoint)
+				host = endpoint
 			}
+			apiHosts = append(apiHosts, host)
 		}
 
-		if apiHost == "" {
-			// Fallback if parsing failed mysteriously or resulted in empty
-			klog.Warning("Parsed API host is empty, reverting to full provided string")
-			apiHost = apiUrl
-		}
-
-		klog.Infof("Initializing SANtricity Client with Host: %s, Port: %d", apiHost, apiPort)
+		klog.Infof("Initializing SANtricity Client with Hosts: %v, Port: %d", apiHosts, apiPort)
 
 		// Basic configuration for the client
 		config := santricity.ClientConfig{
-			ApiControllers: []string{apiHost},
+			ApiControllers: apiHosts,
 			Username:       user,
 			Password:       password,
 			ApiPort:        apiPort,

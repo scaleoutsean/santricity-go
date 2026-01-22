@@ -35,7 +35,7 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
    ```
    If you convert password to `base64`, remember to strip (or not include) newline character from the string before conversion.
    
-   Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint (`SANTRICITY_ENDPOINT`).
+   Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint (`SANTRICITY_ENDPOINT`). You can specify multiple management IPs separated by commas (e.g., `"https://10.10.1.10:8443,https://10.10.1.11:8443"`) to ensure the driver remains functional if one controller is unreachable (e.g. during upgrades or network issues).
 
 2. **Verify Kubelet Path (Node Service)**:
    The default `csi/deploy/node.yaml` uses `/var/lib/kubelet`. If you are using a distribution with a different path, you **must** update the `hostPath` entries in `node.yaml`.

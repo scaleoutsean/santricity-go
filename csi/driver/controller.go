@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	santricity "github.com/scaleoutsean/santricity-go"
@@ -371,7 +372,45 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		}
 		// InvokeAPI returns success even for 404/500 if the request completed. We must check the status code.
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
-			return nil, status.Errorf(codes.Internal, "Failed to delete mapping %s: API returned status %d", m.LunMappingRef, resp.StatusCode)
+
+			// Verification Logic:
+			// If the DELETE failed with an error (e.g. 400 Bad Request, 500 Internal Error),
+			// we double-check if the Volume or Mapping actually still exists.
+			// It is possible the mapping was removed by another thread/process or the error is spurious.
+			klog.Warningf("Delete mapping %s failed with status %d; verifying if resource still exists...", m.LunMappingRef, resp.StatusCode)
+
+			// 1. Re-fetch volume to see if it or its mappings are gone
+			volCheck, errCheck := d.client.GetVolumeByRef(ctx, volID)
+			if errCheck != nil {
+				// If getting the volume fails, we need to determine if it's because it wasn't found.
+				// d.client.GetVolumeByRef usually errors if not found.
+				// Since we don't have typed errors from the client yet, we check the string or rely on the fact that if we can't read it, we probably can't delete it either.
+				// But specifically for 404 on GET, we assume success (volume gone).
+				if strings.Contains(strings.ToLower(errCheck.Error()), "not found") || strings.Contains(errCheck.Error(), "404") {
+					klog.Infof("Volume %s not found during verification (err: %v); assuming mapping %s is removed.", volID, errCheck, m.LunMappingRef)
+					continue // Success, move to next mapping
+				}
+
+				// If we can't verify due to some other error, we must return the original delete error (or the verification error)
+				return nil, status.Errorf(codes.Internal, "Failed to delete mapping %s (status %d) and failed to verify volume state: %v", m.LunMappingRef, resp.StatusCode, errCheck)
+			}
+
+			// 2. Volume exists from double-check. Check if the specific mapping is present.
+			mappingStillExists := false
+			for _, mc := range volCheck.Mappings {
+				if mc.LunMappingRef == m.LunMappingRef {
+					mappingStillExists = true
+					break
+				}
+			}
+
+			if !mappingStillExists {
+				klog.Infof("Mapping %s confirmed absent during verification; ignoring delete failure.", m.LunMappingRef)
+				continue
+			}
+
+			// Mapping still exists, and DELETE failed.
+			return nil, status.Errorf(codes.Internal, "Failed to delete mapping %s: API returned status %d and mapping persists.", m.LunMappingRef, resp.StatusCode)
 		}
 	}
 
