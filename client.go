@@ -217,10 +217,14 @@ func (d Client) InvokeAPI(
 			}
 		} else {
 			if d.config.DebugTraceFlags["api"] {
-				if err := json.Indent(&prettyResponseBuffer, responseBody, "", "  "); err != nil {
-					Logc(ctx).Errorf("Could not format API request for logging; %v", err)
+				if len(responseBody) > 0 {
+					if err := json.Indent(&prettyResponseBuffer, responseBody, "", "  "); err != nil {
+						Logc(ctx).Errorf("Could not format API request for logging; %v", err)
+					} else {
+						LogHTTPResponse(ctx, response, prettyResponseBuffer.Bytes())
+					}
 				} else {
-					LogHTTPResponse(ctx, response, prettyResponseBuffer.Bytes())
+					LogHTTPResponse(ctx, response, []byte("<empty body>"))
 				}
 			}
 		}

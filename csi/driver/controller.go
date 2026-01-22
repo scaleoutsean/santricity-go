@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -364,9 +365,13 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	for _, m := range mappingsToDelete {
 		klog.Infof("Removing mapping %s (LUN %d) for volume %s", m.LunMappingRef, m.LunNumber, volID)
 		// Direct API call to delete mapping
-		_, _, err := d.client.InvokeAPI(ctx, nil, "DELETE", "/volume-mappings/"+m.LunMappingRef)
+		resp, _, err := d.client.InvokeAPI(ctx, nil, "DELETE", "/volume-mappings/"+m.LunMappingRef)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to delete mapping %s: %v", m.LunMappingRef, err)
+		}
+		// InvokeAPI returns success even for 404/500 if the request completed. We must check the status code.
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+			return nil, status.Errorf(codes.Internal, "Failed to delete mapping %s: API returned status %d", m.LunMappingRef, resp.StatusCode)
 		}
 	}
 
