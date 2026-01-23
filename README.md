@@ -8,6 +8,7 @@ A Go client library for the NetApp SANtricity Web Services API, initially extrac
 - Handles JWT/Bearer Token authentication.
 - Supports SANtricity API 11.90+ with iSCSI and NVMe/ROCE host-side interfaces.
 - TLS options: load trusted TLS certificate chain, enable TLS certificate verification, disable certificate verification.
+- Reporting-friendly CLI feature for show-back or charge-back
 
 ## Usage
 
@@ -79,6 +80,19 @@ go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --ca-cert /path/to/chain.p
 
 # Example: List volumes
 go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypassword get volumes
+
+# Example: List volumes' metadata JSON output 
+santricity-cli get volumes -o json | jq '.[] | select(.metadata != null) | {label: .label, k8s_meta: .metadata}'
+```
+
+### Wrap Go CLI in Python scripts
+
+```python
+import subprocess, json
+
+output = subprocess.check_output(["santricity-cli", "get", "volumes", "-o", "json"])
+data = json.loads(output)
+# data now contains a list of dicts with all fields, including 'metadata' (if available)
 ```
 
 ### Environment Variables

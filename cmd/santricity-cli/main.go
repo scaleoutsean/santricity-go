@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
@@ -10,15 +12,16 @@ import (
 )
 
 var (
-	endpoint  string
-	username  string
-	password  string
-	token     string
-	caCert    string
-	insecure  bool
-	debug     bool
-	apiClient *santricity.Client
-	ctx       context.Context
+	endpoint     string
+	username     string
+	password     string
+	token        string
+	caCert       string
+	insecure     bool
+	debug        bool
+	outputFormat string
+	apiClient    *santricity.Client
+	ctx          context.Context
 )
 
 func main() {
@@ -105,6 +108,7 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&caCert, "ca-cert", "", "Path to CA Certificate file")
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "admin", "Username")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password")
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
 	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Bearer Token")
 	rootCmd.PersistentFlags().BoolVar(&insecure, "insecure", false, "Skip TLS verification")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
@@ -136,20 +140,36 @@ func main() {
 			vols, err := apiClient.GetVolumes(ctx)
 			if err != nil {
 				log.Fatalf("Error getting volumes: %v", err)
-			}
-			for _, v := range vols {
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(vols, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				for _, v := range vols {
+					log.Printf("Volume: %s (Size: %s)", v.Label, v.VolumeSize)
+				}
 				log.Printf("Volume: %s (Size: %s)", v.Label, v.VolumeSize)
 			}
 		},
 	}
 	getVolumesCmd.Flags().BoolVar(&showRepoVols, "show-repo-vols", false, "Show internal repository volumes")
-
-	var getPoolsCmd = &cobra.Command{
-		Use:   "pools",
-		Short: "List storage pools",
-		Run: func(cmd *cobra.Command, args []string) {
-			pools, err := apiClient.GetVolumePools(ctx, "", 0, "")
-			if err != nil {
+if outputFormat == "json" {
+				b, err := json.MarshalIndent(pools, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				for _, p := range pools {
+					log.Printf("Pool: %s", p.Label)
+					log.Printf("  ID: %s", p.VolumeGroupRef)
+					log.Printf("  Media: %s", p.DriveMediaType)
+					log.Printf("  PhyType: %s", p.DrivePhysicalType)
+					log.Printf("  RAID: %s", p.RaidLevel)
+					log.Printf("  Free: %s", p.FreeSpace)
+				}
 				log.Fatalf("Error getting pools: %v", err)
 			}
 			for _, p := range pools {
