@@ -92,7 +92,7 @@ go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypa
 santricity-cli get volumes -o json | jq '.[] | select(.metadata != null) | {label: .label, k8s_meta: .metadata}'
 
 # Example: Create host (Linux, NVMe-oF (RoCE))
-./santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmexpress:uuid:b6087fac-aef6-4e75-85c1-abd7078c94f9" --host-type 28 --insecure
+santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmexpress:uuid:b6087fac-aef6-4e75-85c1-abd7078c94f9" --host-type 28 --insecure
 ```
 
 ### Wrap Go CLI in Python scripts
