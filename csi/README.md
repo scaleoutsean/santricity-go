@@ -161,6 +161,21 @@ allowedTopologies:
     - rack1
 ```
 
+#### Multi-protocol deployment
+
+EF-Series can't serve two supported protocols at once, but even so - one may have E4000 (iSCSI) and EF600 (NVMe/RoCE) in the same cluster. To handle that situation, install two instances of SANtricity CSI and configure them like so:
+
+- **Instance 1** - the "NVMe-oF" Driver:
+  - Driver Name: --driver-name=santricity.nvme
+  - Node Selector: node-protocol: nvme
+  - Args: --protocol=nvme (optional for safety; CSI Node prefers `nvmeof`)
+  - StorageClass: provisioner: santricity.nvme
+- **Instance 2** - the "iSCSI" Driver:
+  - Driver Name: --driver-name=santricity.iscsi
+  - Node Selector: node-protocol: iscsi
+  - Args: --protocol=iscsi
+  - StorageClass: provisioner: santricity.iscsi
+
 ## Troubleshooting
 
 Check the logs of the controller:
