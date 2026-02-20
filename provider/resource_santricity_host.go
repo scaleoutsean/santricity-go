@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -20,7 +19,6 @@ func resourceHost() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "The name of the Host.",
-				ForceNew:    true, // Simplification for now, renaming supported but requires check
 			},
 			"type": {
 				Type:        schema.TypeString,
@@ -38,12 +36,12 @@ func resourceHost() *schema.Resource {
 						"type": {
 							Type:        schema.TypeString,
 							Required:    true,
-							Description: "Port type (iscsi or fc)",
+							Description: "Port type (iscsi, fc, nvme, nvmeof, ib)",
 						},
 						"port": {
 							Type:        schema.TypeString,
 							Required:    true,
-							Description: "Port identifier (IQN or WWN)",
+							Description: "Port identifier (IQN, NQN or WWN)",
 						},
 						"label": {
 							Type:        schema.TypeString,
@@ -54,7 +52,7 @@ func resourceHost() *schema.Resource {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Sensitive:   true,
-							Description: "CHAP secret for the port (iscsi only).",
+							Description: "CHAP secret for the port (iSCSI only).",
 						},
 					},
 				},
@@ -63,7 +61,6 @@ func resourceHost() *schema.Resource {
 			"host_group_id": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				ForceNew:    true,
 				Description: "The ID (Ref) of the Host Group.",
 			},
 			"host_id": {
@@ -126,47 +123,71 @@ func resourceHostCreate(ctx context.Context, d *schema.ResourceData, m interface
 }
 
 func resourceHostRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// client := m.(*santricity.Client)
+	client := m.(*santricity.Client)
 	hostID := d.Id()
 
-	// Need GetHostByRef?
-	// Library has GetHostForIQN.
-	// We should probably rely on GetHosts list and find by Ref.
+	host, err := client.GetHostByRef(ctx, hostID)
+	if err != nil {
+		// Verify if 404/not found. The library returns an error if not 200/OK.
+		if apiErr, ok := err.(santricity.Error); ok && apiErr.Code == 404 {
+			d.SetId("")
+			return nil
+		}
+		return diag.FromErr(err)
+	}
 
-	// TODO: Add GetHost(ref) to library for efficiency.
-	// For now, listing all hosts?
-	// Let's assume we can rely on ID.
-
-	// Actually, client.GetHost not obviously available.
-	// I'll leave basic read implementing checking existence via list.
-
-	// Placeholder: just return success if ID exists? No, Terraform needs to detect drift.
-	// drift check: list hosts, check if ID exists.
-
-	// Assuming implementation later. For now, returning nil (assuming existence).
-	// But let's check correct name.
-	d.Set("host_id", hostID)
+	d.Set("name", host.Label)
+	// We could import port details here but that might cause diffs if they are reordered.
+	// For now trust Terraform state on ports unless drifted.
+	// However, we should verify at least name.
 
 	return nil
 }
 
 func resourceHostUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// Not implemented
+	client := m.(*santricity.Client)
+	hostID := d.Id()
+
+	updateReq := santricity.HostUpdateRequest{}
+	updateNeeded := false
+
+	if d.HasChange("name") {
+		updateReq.Name = d.Get("name").(string)
+		updateNeeded = true
+	}
+
+	if d.HasChange("host_group_id") {
+		updateReq.GroupID = d.Get("host_group_id").(string)
+		updateNeeded = true
+	}
+
+	if d.HasChange("type") {
+		hostTypeStr := d.Get("type").(string)
+		idx := client.GetBestIndexForHostType(ctx, hostTypeStr)
+		updateReq.HostType = &santricity.HostType{Index: idx}
+		updateNeeded = true
+	}
+
+	if updateNeeded {
+		_, err := client.UpdateHost(ctx, hostID, updateReq)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	return resourceHostRead(ctx, d, m)
 }
 
 func resourceHostDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	// Library needs DeleteHost(HostEx)
-	// Searching library for DeleteHost... not found in grep earlier?
-	// Let's assume it exists or use InvokeAPI directly.
-
 	client := m.(*santricity.Client)
 	hostID := d.Id()
 
-	// Direct API call if method missing
-	path := fmt.Sprintf("/hosts/%s", hostID)
-	_, _, err := client.InvokeAPI(ctx, nil, "DELETE", path)
+	err := client.DeleteHost(ctx, hostID)
 	if err != nil {
+		if apiErr, ok := err.(santricity.Error); ok && apiErr.Code == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 

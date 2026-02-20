@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -50,6 +50,9 @@ type ClientConfig struct {
 
 	// Volume Filtering
 	IncludeRepositoryVolumes bool // If true, include repository volumes (like repos_*) in GetVolumes output
+
+	// Metrics Hook
+	OnRequest func(method string, path string, statusCode int, duration time.Duration)
 
 	// Internal Config Variables
 	ArrayID                       string // Unique ID for array
@@ -188,14 +191,26 @@ func (d Client) InvokeAPI(
 			Timeout:   time.Duration(StorageAPITimeoutSeconds * time.Second),
 		}
 
+		startTime := time.Now()
 		response, lastErr = client.Do(request)
+		duration := time.Since(startTime)
+
+		if d.config.OnRequest != nil {
+			statusCode := 0
+			if response != nil {
+				statusCode = response.StatusCode
+			}
+			// Use the resourcePath as the metric label
+			d.config.OnRequest(method, resourcePath, statusCode, duration)
+		}
+
 		if lastErr != nil {
 			Logc(ctx).Warnf("Error communicating with controller %s: %v", controller, lastErr)
 			continue // Try next controller
 		}
 
 		// Read Body
-		responseBody, lastErr = ioutil.ReadAll(response.Body)
+		responseBody, lastErr = io.ReadAll(response.Body)
 		response.Body.Close()
 
 		if lastErr != nil {
@@ -313,7 +328,7 @@ func (d Client) AboutInfo(ctx context.Context) (*AboutResponse, error) {
 		}
 
 		responseBody := []byte{}
-		responseBody, err = ioutil.ReadAll(response.Body)
+		responseBody, err = io.ReadAll(response.Body)
 		response.Body.Close()
 
 		if err != nil {
@@ -951,6 +966,22 @@ func (d Client) UpdateVolumeTags(
 		VolumeTags: tags,
 	}
 
+	return d.UpdateVolume(ctx, volumeRef, request)
+}
+
+// UpdateVolume updates a volume configuration.
+func (d Client) UpdateVolume(ctx context.Context, volumeRef string, request VolumeUpdateRequest) (VolumeEx, error) {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method":    "UpdateVolume",
+			"Type":      "Client",
+			"volumeRef": volumeRef,
+			"request":   request,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> UpdateVolume")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< UpdateVolume")
+	}
+
 	jsonRequest, err := json.Marshal(request)
 	if err != nil {
 		return VolumeEx{}, fmt.Errorf("could not marshal JSON request: %v; %v", request, err)
@@ -965,6 +996,7 @@ func (d Client) UpdateVolumeTags(
 	if response.StatusCode != http.StatusOK {
 		apiError := d.getErrorFromHTTPResponse(response, responseBody)
 		apiError.Message = fmt.Sprintf("could not update volume %s; %s", volumeRef, apiError.Message)
+		// We could potentially return VolumeEx{} instead of failing hard if it's just a warning, but for updates let's be strict.
 		return VolumeEx{}, apiError
 	}
 
@@ -1120,21 +1152,22 @@ func (d Client) DeleteVolume(ctx context.Context, volume VolumeEx) error {
 
 // ExpandVolume expands a volume to the specified size in bytes.
 // Note: This operation is asynchronous on the array.
-func (d Client) ExpandVolume(ctx context.Context, volumeRef string, newSizeInBytes int64) error {
+// The expansionSize parameter corresponds to the new TOTAL size of the volume in bytes.
+func (d Client) ExpandVolume(ctx context.Context, volumeRef string, expansionSize int64) error {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
-			"Method": "ExpandVolume",
-			"Type":   "Client",
-			"ref":    volumeRef,
-			"size":   newSizeInBytes,
+			"Method":        "ExpandVolume",
+			"Type":          "Client",
+			"ref":           volumeRef,
+			"expansionSize": expansionSize,
 		}
 		Logc(ctx).WithFields(fields).Debug(">>>> ExpandVolume")
 		defer Logc(ctx).WithFields(fields).Debug("<<<< ExpandVolume")
 	}
 
 	request := VolumeExpansionRequest{
-		ExpansionSize: fmt.Sprintf("%d", newSizeInBytes),
+		ExpansionSize: fmt.Sprintf("%d", expansionSize),
 		SizeUnit:      "bytes",
 	}
 
@@ -1163,21 +1196,35 @@ func (d Client) ExpandVolume(ctx context.Context, volumeRef string, newSizeInByt
 // taken. If not, this method chooses a unique name for the Host and creates it on the array. Once the Host is created,
 // it is placed in the Host Group used for nDVP volumes.
 func (d Client) EnsureHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
+	return d.EnsureHostForPort(ctx, iqn, "iscsi")
+}
+
+// EnsureHostForNQN handles automatic E-series Host and Host Group creation. Given the NQN of a host, this method
+// verifies whether a Host is already configured on the array. If so, the Host info is returned and no further action is
+// taken. If not, this method chooses a unique name for the Host and creates it on the array. Once the Host is created,
+// it is placed in the Host Group used for nDVP volumes.
+func (d Client) EnsureHostForNQN(ctx context.Context, nqn string) (HostEx, error) {
+	return d.EnsureHostForPort(ctx, nqn, "nvmeof")
+}
+
+func (d Client) EnsureHostForPort(ctx context.Context, portID, portType string) (HostEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
-			"Method": "EnsureHostForIQN",
-			"Type":   "Client",
-			"iqn":    iqn,
+			"Method":   "EnsureHostForPort",
+			"Type":     "Client",
+			"portID":   portID,
+			"portType": portType,
 		}
-		Logc(ctx).WithFields(fields).Debug(">>>> EnsureHostForIQN")
-		defer Logc(ctx).WithFields(fields).Debug("<<<< EnsureHostForIQN")
+		Logc(ctx).WithFields(fields).Debug(">>>> EnsureHostForPort")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< EnsureHostForPort")
 	}
 
-	// See if there is already a host for the specified IQN
-	host, err := d.GetHostForIQN(ctx, iqn)
+	// See if there is already a host for the specified PortID
+	// GetHostForPort actually searches for both IQN and NQN/NVMeNodeName
+	host, err := d.GetHostForPort(ctx, portID)
 	if err != nil {
-		return HostEx{}, fmt.Errorf("could not ensure host for IQN %s: %v", iqn, err)
+		return HostEx{}, fmt.Errorf("could not ensure host for PortID %s: %v", portID, err)
 	}
 
 	// If we found a host, return it and leave well enough alone, since the host could have been defined
@@ -1185,16 +1232,16 @@ func (d Client) EnsureHostForIQN(ctx context.Context, iqn string) (HostEx, error
 	if host.HostRef != "" {
 
 		Logc(ctx).WithFields(log.Fields{
-			"IQN":        iqn,
+			"PortID":     portID,
 			"HostRef":    host.HostRef,
 			"ClusterRef": host.ClusterRef,
-		}).Debug("Host already exists for IQN.")
+		}).Debug("Host already exists for PortID.")
 
 		return host, nil
 	}
 
 	// Pick a host name
-	hostname := d.createNameForHost(iqn)
+	hostname := d.createNameForHost(portID)
 
 	// Ensure we have a group for the new host. If for any reason this fails, we'll create the host anyway with no group.
 	hostGroup, err := d.EnsureHostGroup(ctx)
@@ -1203,17 +1250,26 @@ func (d Client) EnsureHostForIQN(ctx context.Context, iqn string) (HostEx, error
 	}
 
 	// Create the new host in the group
-	// Default to iscsi for legacy EnsureHostForIQN behavior
-	return d.CreateHost(ctx, hostname, iqn, "iscsi", d.config.HostType, "", hostGroup)
+	return d.CreateHost(ctx, hostname, portID, portType, d.config.HostType, "", hostGroup)
 }
 
 func (d Client) createNameForHost(iqn string) string {
 
 	// Get unique hostname suffix up to 10 chars, either the last part of the IQN or a random sequence
 	var uniqueSuffix = RandomString(10)
+	// Check for standard IQN or NQN format
+	// IQN: iqn.yyyy-mm.reverse.domain:identifier
+	// NQN: nqn.2014-08.org.nvmexpress:uuid:12345...
 	index := strings.LastIndex(iqn, ":")
-	if (index >= 0) && (len(iqn) > index+2) {
+	if (index >= 0) && (len(iqn) > index+1) {
 		uniqueSuffix = iqn[index+1:]
+	} else {
+		// Fallback for unexpected formats
+		if len(iqn) > 10 {
+			uniqueSuffix = iqn[len(iqn)-10:]
+		} else {
+			uniqueSuffix = iqn
+		}
 	}
 	if len(uniqueSuffix) > 10 {
 		uniqueSuffix = uniqueSuffix[:10]
@@ -1236,8 +1292,8 @@ func (d Client) createNameForHost(iqn string) string {
 
 func (d Client) createNameForPort(host string) string {
 
-	// Suffix should be _<portNumber>, defaulting to 0 for initial creation
-	suffix := "_0"
+	// Suffix should be _<portNumber>, defaulting to 1 for initial creation
+	suffix := "_1"
 	hostname := host
 
 	maxLength := maxNameLength - len(suffix)
@@ -1248,18 +1304,18 @@ func (d Client) createNameForPort(host string) string {
 	return hostname + suffix
 }
 
-// GetHostForIQN queries the Host objects on the array an returns one matching the supplied IQN. An empty struct is
+// GetHostForPort queries the Host objects on the array an returns one matching the supplied port ID (IQN or NQN). An empty struct is
 // returned if a matching host is not found, so the caller should check for empty values in the result.
-func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
+func (d Client) GetHostForPort(ctx context.Context, portID string) (HostEx, error) {
 
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
-			"Method": "GetHostForIQN",
+			"Method": "GetHostForPort",
 			"Type":   "Client",
-			"iqn":    iqn,
+			"portID": portID,
 		}
-		Logc(ctx).WithFields(fields).Debug(">>>> GetHostForIQN")
-		defer Logc(ctx).WithFields(fields).Debug("<<<< GetHostForIQN")
+		Logc(ctx).WithFields(fields).Debug(">>>> GetHostForPort")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< GetHostForPort")
 	}
 
 	// Get hosts
@@ -1281,7 +1337,7 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 		return HostEx{}, fmt.Errorf("could not parse host data: %s; %v", string(responseBody), err)
 	}
 
-	// Find initiator with matching IQN
+	// Find initiator with matching portID
 	for _, host := range hosts {
 		for _, f := range host.Initiators {
 			Logc(ctx).WithFields(log.Fields{
@@ -1289,41 +1345,41 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 				"f.NodeName.IscsiNodeName":                      f.NodeName.IscsiNodeName,
 				"f.InitiatorNodeName.NodeName.IoInterfaceType	": f.InitiatorNodeName.NodeName.IoInterfaceType,
 				"f.InitiatorNodeName.NodeName.IscsiNodeName":    f.InitiatorNodeName.NodeName.IscsiNodeName,
-				"iqn": iqn,
+				"portID": portID,
 			}).Debug("Comparing...")
 
-			if f.NodeName.IoInterfaceType == "iscsi" && f.NodeName.IscsiNodeName == iqn {
+			if f.NodeName.IoInterfaceType == "iscsi" && f.NodeName.IscsiNodeName == portID {
 
 				Logc(ctx).WithFields(log.Fields{
 					"Name": host.Label,
-					"IQN":  iqn,
+					"IQN":  portID,
 				}).Debug("Found host.")
 
 				return host, nil
 
-			} else if f.NodeName.IoInterfaceType == "nvmeof" && f.NodeName.NvmeNodeName == iqn {
+			} else if f.NodeName.IoInterfaceType == "nvmeof" && f.NodeName.NvmeNodeName == portID {
 
 				Logc(ctx).WithFields(log.Fields{
 					"Name": host.Label,
-					"NQN":  iqn,
+					"NQN":  portID,
 				}).Debug("Found host.")
 
 				return host, nil
 
-			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "iscsi" && f.InitiatorNodeName.NodeName.IscsiNodeName == iqn {
+			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "iscsi" && f.InitiatorNodeName.NodeName.IscsiNodeName == portID {
 
 				Logc(ctx).WithFields(log.Fields{
 					"Name": host.Label,
-					"IQN":  iqn,
+					"IQN":  portID,
 				}).Debug("Found host.")
 
 				return host, nil
 
-			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "nvmeof" && f.InitiatorNodeName.NodeName.NvmeNodeName == iqn {
+			} else if f.InitiatorNodeName.NodeName.IoInterfaceType == "nvmeof" && f.InitiatorNodeName.NodeName.NvmeNodeName == portID {
 
 				Logc(ctx).WithFields(log.Fields{
 					"Name": host.Label,
-					"NQN":  iqn,
+					"NQN":  portID,
 				}).Debug("Found host.")
 
 				return host, nil
@@ -1332,7 +1388,7 @@ func (d Client) GetHostForIQN(ctx context.Context, iqn string) (HostEx, error) {
 	}
 
 	// Nothing failed, so return an empty structure if we didn't find anything
-	Logc(ctx).WithField("IQN", iqn).Debug("No host found.")
+	Logc(ctx).WithField("PortID", portID).Debug("No host found.")
 	return HostEx{}, nil
 }
 
@@ -1356,13 +1412,13 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	// Set up the host create request
 	var request HostCreateRequest
 	request.Name = name
-	request.HostType.Index = d.getBestIndexForHostType(ctx, hostType)
+	request.HostType.Index = d.GetBestIndexForHostType(ctx, hostType)
 	request.GroupID = hostGroup.ClusterRef
 	request.Ports = make([]HostPort, 1)
 	request.Ports[0].Label = d.createNameForPort(name)
 	request.Ports[0].Port = portID
 	request.Ports[0].Type = portType
-	if authSecret != "" {
+	if authSecret != "" && portType != "nvmeof" {
 		request.Ports[0].IscsiChapSecret = authSecret
 	}
 
@@ -1406,7 +1462,35 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	return host, nil
 }
 
-func (d Client) getBestIndexForHostType(ctx context.Context, hostType string) int {
+// DeleteHost deletes a host from the array.
+func (d Client) DeleteHost(ctx context.Context, hostRef string) error {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method":  "DeleteHost",
+			"Type":    "Client",
+			"hostRef": hostRef,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> DeleteHost")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< DeleteHost")
+	}
+
+	url := fmt.Sprintf("/hosts/%s", hostRef)
+	response, _, err := d.InvokeAPI(ctx, nil, "DELETE", url)
+	if err != nil {
+		return fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
+		return Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not delete host %s", hostRef),
+		}
+	}
+
+	return nil
+}
+
+func (d Client) GetBestIndexForHostType(ctx context.Context, hostType string) int {
 
 	// If the hostType is explicitly an integer (as a string), use it directly.
 	if val, err := strconv.Atoi(hostType); err == nil {
@@ -1646,6 +1730,44 @@ func (d Client) GetHostByRef(ctx context.Context, hostRef string) (HostEx, error
 		return HostEx{}, Error{
 			Code:    response.StatusCode,
 			Message: fmt.Sprintf("could not get host %s", hostRef),
+		}
+	}
+
+	var host HostEx
+	if err := json.Unmarshal(responseBody, &host); err != nil {
+		return HostEx{}, fmt.Errorf("could not parse host data: %s; %v", string(responseBody), err)
+	}
+
+	return host, nil
+}
+
+// UpdateHost updates a host configuration.
+func (d Client) UpdateHost(ctx context.Context, hostRef string, request HostUpdateRequest) (HostEx, error) {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method":  "UpdateHost",
+			"Type":    "Client",
+			"hostRef": hostRef,
+			"request": request,
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> UpdateHost")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< UpdateHost")
+	}
+
+	jsonRequest, err := json.Marshal(request)
+	if err != nil {
+		return HostEx{}, fmt.Errorf("could not marshal JSON request: %v; %v", request, err)
+	}
+
+	response, responseBody, err := d.InvokeAPI(ctx, jsonRequest, "POST", "/hosts/"+hostRef)
+	if err != nil {
+		return HostEx{}, fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return HostEx{}, Error{
+			Code:    response.StatusCode,
+			Message: fmt.Sprintf("could not update host %s", hostRef),
 		}
 	}
 
@@ -2054,6 +2176,44 @@ func (d *Client) GetTargetSettings(ctx context.Context) (*IscsiTargetSettings, e
 	return &settings, nil
 }
 
+// GetNVMeoFSettings returns the NVMeoF initiator settings for the array.
+func (d *Client) GetNVMeoFSettings(ctx context.Context) (*NvmeofTargetSettings, error) {
+
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method": "GetNVMeoFSettings",
+			"Type":   "Client",
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> GetNVMeoFSettings")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< GetNVMeoFSettings")
+	}
+
+	// Query NVMeoF target settings
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/nvmeof/initiator-settings")
+	if err != nil {
+		return nil, fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, Error{
+			Code:    response.StatusCode,
+			Message: "could not read NVMeoF settings",
+		}
+	}
+
+	var settings NvmeofTargetSettings
+	err = json.Unmarshal(responseBody, &settings)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse NVMeoF settings data: %s; %v", string(responseBody), err)
+	}
+
+	Logc(ctx).WithFields(log.Fields{
+		"TargetNQN": settings.NodeName.NvmeNodeName,
+	}).Debug("Got target NVMeoF settings.")
+
+	return &settings, nil
+}
+
 // IsRefValid checks whether the supplied string is a valid E-series object reference as used by its REST API.
 // Ref values are strings of all numerical digits that aren't all zeros (i.e. the null ref).
 func (d Client) IsRefValid(ref string) bool {
@@ -2094,4 +2254,103 @@ func (d Client) getErrorFromHTTPResponse(response *http.Response, responseBody [
 			Message: "API failed",
 		}
 	}
+}
+
+// GetSnapshotGroups retrieves all Snapshot Groups (PiT Groups)
+func (d Client) GetSnapshotGroups(ctx context.Context) ([]SnapshotGroup, error) {
+	Logc(ctx).Debug("Getting SnapshotGroups")
+
+	_, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/snapshot-groups")
+	if err != nil {
+		return nil, fmt.Errorf("could not get snapshot groups: %v", err)
+	}
+
+	var groups []SnapshotGroup
+	err = json.Unmarshal(responseBody, &groups)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse snapshot groups: %v", err)
+	}
+	return groups, nil
+}
+
+// GetSnapshotImages retrieves all Snapshot Images (PiTs)
+func (d Client) GetSnapshotImages(ctx context.Context) ([]SnapshotImage, error) {
+	Logc(ctx).Debug("Getting SnapshotImages")
+
+	_, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/snapshot-images")
+	if err != nil {
+		return nil, fmt.Errorf("could not get snapshot images: %v", err)
+	}
+
+	var images []SnapshotImage
+	err = json.Unmarshal(responseBody, &images)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse snapshot images: %v", err)
+	}
+	return images, nil
+}
+
+// GetSnapshotVolumes retrieves all Snapshot Volumes (Linked Clones)
+func (d Client) GetSnapshotVolumes(ctx context.Context) ([]SnapshotVolume, error) {
+	Logc(ctx).Debug("Getting SnapshotVolumes")
+
+	_, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/snapshot-volumes")
+	if err != nil {
+		return nil, fmt.Errorf("could not get snapshot volumes: %v", err)
+	}
+
+	var volumes []SnapshotVolume
+	err = json.Unmarshal(responseBody, &volumes)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse snapshot volumes: %v", err)
+	}
+	return volumes, nil
+}
+
+// CheckVolumeDependencies checks if a volume has dependent Snapshots or Linked Clones
+func (d Client) CheckVolumeDependencies(ctx context.Context, volumeRef string) error {
+	Logc(ctx).WithField("volumeRef", volumeRef).Debug("Checking volume dependencies")
+
+	// 1. Check for Linked Clones (SnapshotVolumes) directly depending on the volume
+	snapVols, err := d.GetSnapshotVolumes(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list snapshot volumes: %v", err)
+	}
+	for _, sv := range snapVols {
+		if sv.BaseVolume == volumeRef {
+			return fmt.Errorf("volume has dependent Linked Clone (SnapshotVolume): %s (%s)", sv.Label, sv.SnapshotRef)
+		}
+	}
+
+	// 2. Check for SnapshotGroups (PiTGroups) depending on the volume
+	// And if they contain active SnapshotImages (PiTs)
+	snapGroups, err := d.GetSnapshotGroups(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list snapshot groups: %v", err)
+	}
+
+	var dependentGroups []string
+	for _, g := range snapGroups {
+		if g.BaseVolume == volumeRef {
+			dependentGroups = append(dependentGroups, g.PitGroupRef)
+		}
+	}
+
+	if len(dependentGroups) > 0 {
+		// Found groups, now check if they have snapshots
+		snapImages, err := d.GetSnapshotImages(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list snapshot images: %v", err)
+		}
+
+		for _, img := range snapImages {
+			for _, gRef := range dependentGroups {
+				if img.PitGroupRef == gRef {
+					return fmt.Errorf("volume has dependent Snapshot Image (PiT): %s (Group: %s)", img.PitRef, gRef)
+				}
+			}
+		}
+	}
+
+	return nil
 }

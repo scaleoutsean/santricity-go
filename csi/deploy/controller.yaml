@@ -94,6 +94,8 @@ spec:
                   name: santricity-csi-credentials
                   key: password
                   optional: true
+            - name: SANTRICITY_VERIFY_TLS
+              value: "false"
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/

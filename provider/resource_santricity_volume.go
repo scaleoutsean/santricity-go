@@ -25,7 +25,6 @@ func resourceVolume() *schema.Resource {
 			"name": {
 				Type:        schema.TypeString,
 				Required:    true,
-				ForceNew:    true, // Renaming usually supported but complicated, keeping simpler for now
 				Description: "The name of the volume.",
 			},
 			"size_gb": {
@@ -37,6 +36,7 @@ func resourceVolume() *schema.Resource {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Default:     "raid6",
+				ForceNew:    true,
 				Description: "The RAID level for the volume (e.g. raid1, raid6). Defaults to raid6.",
 			},
 			"volume_id": {
@@ -99,54 +99,24 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 	client := m.(*santricity.Client)
 	volID := d.Id()
 
-	// Need a GetVolume method by Ref or ID.
-	// client.GetVolume(ctx, volID) ?
-	// Library has GetVolumes() which list all.
-	// Library has InvokeAPI.
-	// Library might have GetVolume(ref). Let's check `client.go`.
-
-	// If specific get not available, we have to list all and find or add method.
-	// Assuming GetVolume behavior for now or I'll implement it strictly within provider if needed using InvokeAPI directly to avoid modifying library too much if not desired, but cleaner to fix library.
-	// Actually, I'll use list for now if single get is missing, but efficient way is `GetVolume(id)`.
-	// For now, I'll assume I can implement `getVolume` helper here or use library.
-
-	// Let's assume we implement a helper `getVolume` in provider or check library.
-	// Based on earlier searches, there was `GetVolumes` returning `[]VolumeEx`.
-	// I'll stick to listing for safety if specific Get unavailable, but for performance `InvokeAPI` path `/volumes/{id}` is better.
-	// I'll implement a local helper if needed.
-
-	// Using the library's internal-ish `InvokeAPI`? No, it's public.
-	// But `VolumeEx` struct parsing is needed.
-
-	// Let's try to find the volume in `GetVolumes` list for "v1" MVP.
-
-	vols, err := client.GetVolumes(ctx)
+	vol, err := client.GetVolumeByRef(ctx, volID)
 	if err != nil {
+		// Verify if 404/not found to update state
+		if apiErr, ok := err.(santricity.Error); ok && apiErr.Code == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
-	var foundVol *santricity.VolumeEx
-	for _, v := range vols {
-		if v.VolumeRef == volID {
-			foundVol = &v
-			break
-		}
-	}
+	d.Set("name", vol.Label)
+	d.Set("pool_id", vol.VolumeGroupRef)
 
-	if foundVol == nil {
-		d.SetId("")
-		return nil
-	}
-
-	d.Set("name", foundVol.Label)
-	d.Set("pool_id", foundVol.VolumeGroupRef)
 	// Size conversion
-	// VolumeSize in struct is string? Check types.go.
-	// types.go: VolumeSize string `json:"capacity"`
-	// It refers to bytes usually as string.
-	capInt, _ := strconv.ParseUint(foundVol.VolumeSize, 10, 64)
+	// VolumeSize in struct is string representing bytes
+	capInt, _ := strconv.ParseUint(vol.VolumeSize, 10, 64)
 	d.Set("size_gb", int(capInt/(1024*1024*1024)))
-	d.Set("wwn", foundVol.WorldWideName)
+	d.Set("wwn", vol.WorldWideName)
 
 	return nil
 }
@@ -154,6 +124,14 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 func resourceVolumeUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	client := m.(*santricity.Client)
 	volID := d.Id()
+
+	if d.HasChange("name") {
+		newName := d.Get("name").(string)
+		_, err := client.UpdateVolume(ctx, volID, santricity.VolumeUpdateRequest{Name: newName})
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
 
 	if d.HasChange("size_gb") {
 		newSizeGB := d.Get("size_gb").(int)

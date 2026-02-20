@@ -13,8 +13,8 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o santricity-csi ./csi/main.go
 
 # Final Image
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates multipath-tools util-linux e2fsprogs xfsprogs open-iscsi
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates multipath-tools util-linux e2fsprogs xfsprogs open-iscsi procps btrfs-progs bcachefs-tools
 # Note: open-iscsi provides iscsiadm
 
 # Setup minimal env for iscsi tools if needed

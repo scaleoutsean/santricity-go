@@ -263,6 +263,23 @@ type HostGroup struct {
 	Label      string `json:"label"`
 }
 
+type HostPortUpdate struct {
+	PortRef         string `json:"portRef,omitempty"`
+	HostRef         string `json:"hostRef,omitempty"`
+	Port            string `json:"port,omitempty"`
+	Label           string `json:"label,omitempty"`
+	IscsiChapSecret string `json:"iscsiChapSecret,omitempty"`
+}
+
+type HostUpdateRequest struct {
+	Name          string           `json:"name,omitempty"`
+	GroupID       string           `json:"groupId,omitempty"`
+	Ports         []HostPort       `json:"ports,omitempty"`
+	PortsToUpdate []HostPortUpdate `json:"portsToUpdate,omitempty"`
+	PortsToRemove []string         `json:"portsToRemove,omitempty"`
+	HostType      *HostType        `json:"hostType,omitempty"`
+}
+
 type VolumeMappingCreateRequest struct {
 	MappableObjectID string `json:"mappableObjectId"`
 	TargetID         string `json:"targetId"`
@@ -313,7 +330,50 @@ type IscsiTargetSettings struct {
 	} `json:"portals"`
 }
 
+type NvmeofTargetSettings struct {
+	TargetRef string `json:"targetRef"`
+	NodeName  struct {
+		IoInterfaceType string  `json:"ioInterfaceType"`
+		NvmeNodeName    string  `json:"nvmeNodeName"`
+		IscsiNodeName   *string `json:"iscsiNodeName"`
+		RemoteNodeWWN   *string `json:"remoteNodeWWN"`
+	} `json:"nodeName"`
+	Alias struct {
+		IoInterfaceType string  `json:"ioInterfaceType"`
+		IscsiAlias      *string `json:"iscsiAlias"`
+	} `json:"alias"`
+	ConfiguredAuthMethods struct {
+		AuthMethodData []interface{} `json:"authMethodData"`
+	} `json:"configuredAuthMethods"`
+	Portals []interface{} `json:"portals"`
+}
+
 type VolumeExpansionRequest struct {
 	ExpansionSize string `json:"expansionSize"` // String format int64: "1073741824"
 	SizeUnit      string `json:"sizeUnit"`      // "bytes"
+}
+
+// SnapshotGroup represents a PiT Group (Snapshot Group)
+type SnapshotGroup struct {
+	PitGroupRef string `json:"pitGroupRef"`
+	BaseVolume  string `json:"baseVolume"`
+	Label       string `json:"label"`
+	Status      string `json:"status"`
+}
+
+// SnapshotImage represents a PiT (Point-in-Time Image/Snapshot)
+// API definition name: "Snapshot"
+type SnapshotImage struct {
+	PitRef      string `json:"pitRef"`
+	PitGroupRef string `json:"pitGroupRef"`
+	Status      string `json:"status"`
+}
+
+// SnapshotVolume represents a Linked Clone (Snapshot Volume)
+// API definition name: "SnapshotVolume"
+type SnapshotVolume struct {
+	SnapshotRef string `json:"snapshotRef"` // The ID of the Snapshot Volume (linked clone)
+	BaseVolume  string `json:"baseVolume"`  // The Base Volume it was created from
+	Label       string `json:"label"`
+	Status      string `json:"status"`
 }

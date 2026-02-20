@@ -71,6 +71,9 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # ISCSI Session Reaper (disabled by default)
+            - name: SANTRICITY_ENABLE_REAPER
+              value: "false"
           volumeMounts:
             - name: kubelet-dir
               mountPath: /var/lib/kubelet

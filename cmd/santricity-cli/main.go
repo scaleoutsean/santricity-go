@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,7 +9,6 @@ import (
 
 	santricity "github.com/scaleoutsean/santricity-go"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context"
 )
 
 var (
@@ -187,6 +187,49 @@ func main() {
 	getCmd.AddCommand(getVolumesCmd)
 	getCmd.AddCommand(getPoolsCmd)
 	rootCmd.AddCommand(getCmd)
+
+	var createCmd = &cobra.Command{
+		Use:   "create",
+		Short: "Create resources",
+	}
+
+	var hostName, portID, portType, hostType, authSecret, groupID string
+	var createHostCmd = &cobra.Command{
+		Use:   "host",
+		Short: "Create a host",
+		Run: func(cmd *cobra.Command, args []string) {
+			if hostName == "" || portID == "" || portType == "" || hostType == "" {
+				log.Fatal("Error: --name, --port, --type, and --host-type are required")
+			}
+			hg := santricity.HostGroup{}
+			if groupID != "" {
+				hg.ClusterRef = groupID
+				hg.Label = "group-" + groupID
+			}
+			h, err := apiClient.CreateHost(ctx, hostName, portID, portType, hostType, authSecret, hg)
+			if err != nil {
+				log.Fatalf("Error creating host: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(h, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				log.Printf("Created Host: %s (Ref: %s)", h.Label, h.HostRef)
+			}
+		},
+	}
+	createHostCmd.Flags().StringVar(&hostName, "name", "", "Host name")
+	createHostCmd.Flags().StringVar(&portID, "port", "", "Host Port ID (IQN, NQN, WWN)")
+	createHostCmd.Flags().StringVar(&portType, "type", "", "Port type (iscsi, nvmeof, fc, sas)")
+	createHostCmd.Flags().StringVar(&hostType, "host-type", "", "Host type index (e.g., 28 for Linux_DM_MP)")
+	createHostCmd.Flags().StringVar(&authSecret, "auth-secret", "", "CHAP Secret (iSCSI only)")
+	createHostCmd.Flags().StringVar(&groupID, "group-id", "", "Host Group ID (optional)")
+
+	createCmd.AddCommand(createHostCmd)
+	rootCmd.AddCommand(createCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)

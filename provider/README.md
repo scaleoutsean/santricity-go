@@ -20,6 +20,16 @@ Assuming a host dies or is due for hardware refresh:
 - `apply` will force removal of the offlined `server2`, and create `server2` with the new IQN/NQN. 
   - In the case of iSCSI clients where CHAP was set before, also update `chap_secret` with the new CHAP secret, or update your `iscsid.conf` with the old host's CHAP secret (if you have it)
 
+## Host Update Approach
+
+The provider supports in-place updates for the following Host attributes:
+
+- **Name**: You can rename a host without disrupting connectivity.
+- **Host Group**: You can move a host between host groups (or remove it from one).
+- **Host Type**: You can change the operating system type (e.g., from `linux_dm_mp` to `vmware`).
+
+**Note**: Changing the `ports` (IQN, NQN, or WWN) is considered a structural identity change and will force the destruction and recreation of the host resource to ensure integrity.
+
 ## Moving Volumes (Remapping)
 
 If you need to move a volume from one host to another (e.g., from `host-a` to `host-b`):
@@ -31,7 +41,7 @@ If you need to move a volume from one host to another (e.g., from `host-a` to `h
 
 ## Known Limitations
 
-- iSCSI only
+- iSCSI and NVMe/RoCE should work, and FC needs testing with real hardware
 - Hosts must have valid IQN or NQN (CHAP-only iSCSI is not supported)
 
 ## Live Test

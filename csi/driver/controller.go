@@ -57,9 +57,6 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	// SANtricity has a max limit of 30 characters.
 	// Standard PVC names are longer (pvc-uuid...).
 	// Strategy: If len > 30, truncate and append hash of full name to ensure uniqueness.
-	// We'll use "v_" prefix (2 chars) + 12 chars of name + "_" + 15 chars of hash = 30 chars?
-	// Or simpler: just use full hash?
-	// Let's try to preserve some of the PVC name for readability functionality.
 	// Max: 30.
 	// Prefix: "pvc-" (4) ... left 26.
 	// If name starts with "pvc-", we can keep it.
@@ -119,6 +116,19 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 	raidLevel := params["raidLevel"] // Optional
 
+	// Parse optional blockSize parameter
+	var blockSize int // 0 means default
+	if blockSizeStr, ok := params["blockSize"]; ok {
+		bs, err := strconv.Atoi(blockSizeStr)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid blockSize parameter: %s", blockSizeStr)
+		}
+		if bs != 512 && bs != 4096 {
+			return nil, status.Errorf(codes.InvalidArgument, "blockSize must be 512 or 4096, got %d", bs)
+		}
+		blockSize = bs
+	}
+
 	// Find Storage Pool
 	var selectedPoolRef string
 
@@ -136,11 +146,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 
 	if poolID != "" {
-		// Verify if Pool Exists ? Or just use it blindly?
-		// Verification is safer.
-		// There isn't a direct "GetVolumePoolByRef", but there is GetVolumePools.
-		// Actually GetVolumePoolByRef was seen in client.go search result earlier?
-		// <match path="/home/sean/code/santricity-go/client.go" line=545> func (d Client) GetVolumePoolByRef...
+		// Verify if Pool Exists
 		p, err := d.client.GetVolumePoolByRef(ctx, poolID)
 		if err != nil {
 			return nil, status.Errorf(codes.NotFound, "Specified poolID %s not found: %v", poolID, err)
@@ -163,8 +169,8 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 
 	// Create Volume
-	// Note: segmentSize=0, blockSize=0 use defaults
-	vol, err := d.client.CreateVolume(ctx, name, selectedPoolRef, uint64(reqBytes), mediaType, fsType, raidLevel, 0, 0, metadata)
+	// Note: segmentSize=0 uses default, blockSize=0 uses array default (unless specified)
+	vol, err := d.client.CreateVolume(ctx, name, selectedPoolRef, uint64(reqBytes), mediaType, fsType, raidLevel, blockSize, 0, metadata)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create volume: %v", err)
 	}
@@ -193,6 +199,11 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 
 	klog.Infof("Deleting volume %s", volID)
+
+	// Check for dependencies (Guardrails) before cascading delete
+	if err := d.client.CheckVolumeDependencies(ctx, volID); err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "volume has active snapshots or clones: %v", err)
+	}
 
 	// Construct minimal VolumeEx object for deletion
 	vol := santricity.VolumeEx{
@@ -224,13 +235,26 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		return nil, status.Error(codes.InvalidArgument, "Volume ID and Node ID must be provided")
 	}
 
-	// 1. Get Host for NodeID (IQN)
+	// 1. Get Host for NodeID (IQN or NQN)
 	// The nodeID passed by CSI is typically the Node ID reported by NodeGetInfo.
 	// We need to ensure the host exists on the array.
-	klog.Infof("Ensuring host exists for IQN: %s", nodeID)
-	host, err := d.client.EnsureHostForIQN(ctx, nodeID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to ensure host for IQN %s: %v", nodeID, err)
+	var host santricity.HostEx
+	var hostErr error
+	isISCSI := strings.HasPrefix(nodeID, "iqn.")
+	isNVMe := strings.HasPrefix(nodeID, "nqn.")
+
+	if isISCSI {
+		klog.Infof("Ensuring host exists for IQN: %s", nodeID)
+		host, hostErr = d.client.EnsureHostForIQN(ctx, nodeID)
+	} else if isNVMe {
+		klog.Infof("Ensuring host exists for NQN: %s", nodeID)
+		host, hostErr = d.client.EnsureHostForNQN(ctx, nodeID)
+	} else {
+		return nil, status.Errorf(codes.InvalidArgument, "Node ID %s format not recognized (must start with iqn. or nqn.)", nodeID)
+	}
+
+	if hostErr != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to ensure host for %s: %v", nodeID, hostErr)
 	}
 	klog.Infof("Found/Created Host %s (%s)", host.Label, host.HostRef)
 
@@ -248,6 +272,7 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 			return &csi.ControllerPublishVolumeResponse{
 				PublishContext: map[string]string{
 					"lun": strconv.Itoa(m.LunNumber),
+					"wwn": vol.WorldWideName,
 				},
 			}, nil
 		}
@@ -260,43 +285,17 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		return nil, status.Errorf(codes.Internal, "Failed to map volume: %v", err)
 	}
 
-	// 3. Get Target IQN
-	targetSettings, err := d.client.GetTargetSettings(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to get target settings: %v", err)
+	// 3. Get Target Information and Populate Publish Context
+	publishContext := map[string]string{
+		"lun":      strconv.Itoa(mapping.LunNumber),
+		"volumeID": volID,
+		"wwn":      vol.WorldWideName, // Add WWN to PublishContext for Node stage to construct /dev/disk/by-id/wwn-...
 	}
-	targetIQN := targetSettings.NodeName.IscsiNodeName
 
-	// 4. Get Target Portals (IPs)
-	// For simplicity, we can use the management IPs or look for specific iSCSI interface info.
-	// client.GetStorageSystem() gives Controllers[].IPAddresses.
-	// But usually we need checks for iSCSI interfaces specifically.
-	// client.GetTargetSettings actually doesn't return IPs.
-	// client.GetStorageSystem does.
-	// Let's rely on configured HostDataIP if present, akin to client logic.
-	// Or just use the management IP logic fallbacks inside d.client.config.HostDataIP?
-	// But the Node needs it explicitly.
-	// Let's start with a placeholder or Env variable, or query interfaces.
-	// Since we don't have GetInterfaces implemented/checked, let's look for known IPs.
-
-	// Helper: If d.endpoint is an IP, maybe use that? No, that's Management.
-	// We'll create a fallback list.
+	// Determine Target Portal (IP)
+	// TODO: Replace with robust interface discovery (e.g. filter by "iscsi" or "nvme-roce" interface type)
+	// For now, use the first management IP found on controllers as a fallback.
 	var portals []string
-
-	// Try to get configured HostDataIP from client config? Not exposed easily.
-	// Let's implement GetSummary or just use the first Management IP for now and assume it works for iSCSI (often true for valid test setup or single port)
-	// But real world needs 'iscsi/target-settings' or 'analysed-volume-statistics'? No.
-	// Checking client.go for method to get interfaces...
-	// There is invokeAPI for /graph/interfaces?
-	// Let's assume user passes "iscsiDataIP" parameter in StorageClass for now or use a heuristic.
-	// Heuristic: Use os.Getenv("SANTRICITY_ISCSI_IP") or similar.
-	// Better: Return the management IP as a fallback.
-
-	// Actually, let's use the API to find it.
-	// "/iscsi/target-settings" (IscsiTargetSettings) do not have IPs.
-	// "/hardware-inventory" -> controllers -> ethernetInterfaces.
-
-	// For now, I will hardcode finding it via GetStorageSystem which has IPs.
 	sys, err := d.client.GetStorageSystem(ctx)
 	if err == nil && len(sys.Controllers) > 0 {
 		for _, c := range sys.Controllers {
@@ -308,19 +307,35 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		// Fallback
 		portals = []string{"127.0.0.1"}
 	}
+	targetPortalIP := portals[0]
 
-	// Taking the first one as primary
-	targetPortal := portals[0]
-	// Standard iSCSI port
-	targetPortal += ":3260"
+	if isISCSI {
+		targetSettings, err := d.client.GetTargetSettings(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to get iSCSI target settings: %v", err)
+		}
+		// Log detailed settings for debugging
+		klog.Infof("iSCSI Target Settings: NodeName=%s, Portals=%v", targetSettings.NodeName.IscsiNodeName, targetSettings.Portals)
+
+		publishContext["targetIQN"] = targetSettings.NodeName.IscsiNodeName
+		publishContext["targetPortal"] = targetPortalIP + ":3260"
+	} else if isNVMe {
+		nvmeSettings, err := d.client.GetNVMeoFSettings(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to get NVMeoF target settings: %v", err)
+		}
+		// Log detailed settings for debugging
+		klog.Infof("NVMeoF Target Settings: NvmeNodeName=%s, IscsiNodeName=%v, RemoteNodeWWN=%v",
+			nvmeSettings.NodeName.NvmeNodeName, nvmeSettings.NodeName.IscsiNodeName, nvmeSettings.NodeName.RemoteNodeWWN)
+
+		publishContext["targetNQN"] = nvmeSettings.NodeName.NvmeNodeName
+		publishContext["targetPortal"] = targetPortalIP + ":4420" // Default NVMe port
+		// Note: NVMe protocols (RoCE vs TCP) might require "transport" field or different ports.
+		// Assuming TCP or RoCE v2 with default port.
+	}
 
 	return &csi.ControllerPublishVolumeResponse{
-		PublishContext: map[string]string{
-			"lun":          strconv.Itoa(mapping.LunNumber),
-			"targetIQN":    targetIQN,
-			"targetPortal": targetPortal,
-			"volumeID":     volID,
-		},
+		PublishContext: publishContext,
 	}, nil
 }
 
@@ -346,7 +361,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	var mappingsToDelete []santricity.LUNMapping
 
 	if nodeID != "" {
-		host, err := d.client.GetHostForIQN(ctx, nodeID)
+		host, err := d.client.GetHostForPort(ctx, nodeID)
 		if err != nil {
 			klog.Warningf("Host %s not found during unpublish: %v", nodeID, err)
 			return &csi.ControllerUnpublishVolumeResponse{}, nil
@@ -358,8 +373,9 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 			}
 		}
 	} else {
-		// Delete all mappings? Valid for RWO but dangerous for RWX.
-		// Spec: "If the Node ID is not specified... unpublish from all nodes."
+		// If NodeID is not specified, CSI spec says to unpublish from ALL nodes.
+		// We will remove ALL LUN mappings for THIS volume.
+		// Use with caution: effective for completely detaching a volume.
 		mappingsToDelete = vol.Mappings
 	}
 
@@ -460,19 +476,9 @@ func (d *Driver) ControllerExpandVolume(ctx context.Context, req *csi.Controller
 	klog.Infof("Expanding volume %s to %d bytes", volID, requiredBytes)
 
 	// API call to expand
-	// The library ExpandVolume takes target size in bytes.
-	// Note: SANtricity API traditionally sends "expansionSize" as INCREMENTAL size or NEW TOTAL?
-	// The library `ExpandVolume` implementation seems to assume it's the size to pass to `expansionSize` param.
-	// Documentation check or library usage in provider/resource_santricity_volume.go:170 calls it with `newSizeBytes`.
-	// But `client.go` request struct uses `ExpansionSize`.
-	// For most array APIs, "expand" usually means "increase by", but the param name `ExpansionSize` is ambiguous without docs.
-	// However, usually in CSI we get the new TOTAL size.
-	// Let's assume the library wrapper expects the INCREMENTAL amount if the API expects "expansionSize".
-	// WAIT: `client.go` says: `request := VolumeExpansionRequest{ ExpansionSize: fmt.Sprintf("%d", newSizeInBytes) ...`
-	// If the user passes newSizeInBytes to the func, it puts it in ExpansionSize.
-	// If the API treats it as total or delta is the key.
-	// SANtricity Web Services API docs usually say "expansionSize: The size to expand the volume by." (Delta)
-	// So we need to fetch current size first!
+	// SANtricity API VolumeExpansionRequest takes 'expansionSize' which must be greater than current capacity.
+	// This implies it expects the New Total Size (Target Size).
+	// We verify current capacity to ensure idempotency and valid request.
 
 	vol, err := d.client.GetVolumeByRef(ctx, volID)
 	if err != nil {
@@ -488,10 +494,9 @@ func (d *Driver) ControllerExpandVolume(ctx context.Context, req *csi.Controller
 		}, nil
 	}
 
-	delta := requiredBytes - currentBytes
-	klog.Infof("Delta expansion: %d bytes (Current: %d, Required: %d)", delta, currentBytes, requiredBytes)
+	klog.Infof("Expanding volume %s from %d to %d bytes", volID, currentBytes, requiredBytes)
 
-	err = d.client.ExpandVolume(ctx, volID, delta)
+	err = d.client.ExpandVolume(ctx, volID, requiredBytes)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to expand volume: %v", err)
 	}

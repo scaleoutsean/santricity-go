@@ -43,9 +43,10 @@ func resourceHostGroupRead(ctx context.Context, d *schema.ResourceData, m interf
 
 	hg, err := client.GetHostGroupByRef(ctx, id)
 	if err != nil {
-		// If 404, remove from state
-		// But GetHostGroupByRef returns error on non-200.
-		// We should check if error is 404/NotFound.
+		if apiErr, ok := err.(santricity.Error); ok && apiErr.Code == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 
@@ -59,6 +60,10 @@ func resourceHostGroupDelete(ctx context.Context, d *schema.ResourceData, m inte
 
 	err := client.DeleteHostGroup(ctx, id)
 	if err != nil {
+		if apiErr, ok := err.(santricity.Error); ok && apiErr.Code == 404 {
+			d.SetId("")
+			return nil
+		}
 		return diag.FromErr(err)
 	}
 	d.SetId("")

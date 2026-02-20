@@ -2,13 +2,20 @@
 
 A Go client library for the NetApp SANtricity Web Services API, initially extracted from NetApp Trident and then improved.
 
+Sub-projects:
+
+- [SANtricity Provider](./provider/) for Terraform
+- [SANtricity CSI driver](./csi/) for Kubernetes
+
 ## Features
 
 - Supports direct connection to E-Series arrays (no Web Services Proxy required).
 - Handles JWT/Bearer Token authentication.
-- Supports SANtricity API 11.90+ with iSCSI and NVMe/ROCE host-side interfaces.
+- Supports SANtricity API 11.90+ with iSCSI and NVMe/RoCE host-side interfaces.
 - TLS options: load trusted TLS certificate chain, enable TLS certificate verification, disable certificate verification.
-- Reporting-friendly CLI feature for show-back or charge-back
+- Reporting-friendly CLI feature for show-back or charge-back.
+
+For Terraform SANtricity Provider and SANtricity CSI, check their respective folders.
 
 ## Usage
 
@@ -62,7 +69,7 @@ The library supports common storage management operations:
 - **System**: `AboutInfo`, `GetStorageSystem`
 - **Volumes**: `GetVolumes`, `CreateVolume`, `ResizeVolume`, `DeleteVolume`, `MapVolume`, `UnmapVolume`
 - **Pools**: `GetVolumePools`
-- **Hosts**: `CreateHost`, `GetHostForIQN`
+- **Hosts**: `CreateHost`, `GetHostForPort`
 
 ## CLI
 
@@ -83,6 +90,9 @@ go run cmd/santricity-cli/main.go --endpoint 10.0.0.1 --insecure --password mypa
 
 # Example: List volumes' metadata JSON output 
 santricity-cli get volumes -o json | jq '.[] | select(.metadata != null) | {label: .label, k8s_meta: .metadata}'
+
+# Example: Create host (Linux, NVMe-oF (RoCE))
+./santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmexpress:uuid:b6087fac-aef6-4e75-85c1-abd7078c94f9" --host-type 28 --insecure
 ```
 
 ### Wrap Go CLI in Python scripts

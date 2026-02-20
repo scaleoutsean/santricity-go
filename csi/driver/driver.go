@@ -12,14 +12,19 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	santricity "github.com/scaleoutsean/santricity-go"
+	"github.com/scaleoutsean/santricity-go/csi/metrics"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 )
 
-const (
+var (
 	DriverName = "santricity.scaleoutsean.github.io"
-	Version    = "0.1.11"
+)
+
+const (
+	Version = "0.1.11"
 )
 
 type Driver struct {
@@ -27,6 +32,7 @@ type Driver struct {
 	csi.UnimplementedControllerServer
 	csi.UnimplementedNodeServer
 
+	name     string
 	nodeID   string
 	endpoint string
 	client   *santricity.Client
@@ -34,10 +40,19 @@ type Driver struct {
 	// Server
 	srv *grpc.Server
 	m   sync.Mutex
+
+	// Reaper state
+	reaperEnabled       bool
+	reaperInterval      time.Duration
+	unseenWithoutDevice map[string]time.Time // iqn -> first time seen without device
+	unseenMu            sync.Mutex
 }
 
-func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error) {
-	klog.Infof("Driver: %v Version: %v", DriverName, Version)
+func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Driver, error) {
+	if driverName == "" {
+		driverName = DriverName
+	}
+	klog.Infof("Driver: %v Version: %v", driverName, Version)
 
 	// If API URL is provided, initialize client
 	var client *santricity.Client
@@ -111,13 +126,15 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 			Username:       user,
 			Password:       password,
 			ApiPort:        apiPort,
-			// For Embedded Web Services (on-controller), ArrayID is typically "1".
+			// For Embedded Web Services (on-controller), acceptable ArrayID (SystemID) "1".
 			ArrayID: "1",
 			DebugTraceFlags: map[string]bool{
+				// Disable tracing sensitive info by default
 				"method": true,
-				"api":    true,
+				"api":    false, // Potentially logs full requests including credentials
 			},
-			VerifyTLS: false, // Explicitly disable verification for lab use
+			VerifyTLS: strings.EqualFold(os.Getenv("SANTRICITY_VERIFY_TLS"), "true"), // Explicitly disable verification for lab use by default
+			OnRequest: metrics.RequestCallback,
 		}
 
 		client = santricity.NewAPIClient(context.Background(), config)
@@ -141,9 +158,14 @@ func NewDriver(nodeID, endpoint, apiUrl, user, password string) (*Driver, error)
 	}
 
 	return &Driver{
+		name:     driverName,
 		nodeID:   nodeID,
 		endpoint: endpoint,
 		client:   client,
+
+		reaperEnabled:       strings.EqualFold(os.Getenv("SANTRICITY_ENABLE_REAPER"), "true"),
+		reaperInterval:      60 * time.Second, // Default 60s
+		unseenWithoutDevice: make(map[string]time.Time),
 	}, nil
 }
 
@@ -172,7 +194,7 @@ func (d *Driver) Run(isController, isNode bool) error {
 	}
 
 	opts := []grpc.ServerOption{
-		grpc.UnaryInterceptor(logGRPC),
+		grpc.UnaryInterceptor(sanitizeGRPC),
 	}
 	d.srv = grpc.NewServer(opts...)
 
@@ -182,6 +204,8 @@ func (d *Driver) Run(isController, isNode bool) error {
 	if isController {
 		klog.Info("Registering Controller Server")
 		csi.RegisterControllerServer(d.srv, d)
+		// Start metrics collection for controller
+		go d.runMetricsLoop()
 	}
 
 	// Always register Node Server, even if running as Controller,
@@ -190,15 +214,52 @@ func (d *Driver) Run(isController, isNode bool) error {
 	klog.Info("Registering Node Server")
 	csi.RegisterNodeServer(d.srv, d)
 
+	if isNode {
+		// Start iSCSI Session Reaper
+		go d.startReaper()
+	}
+
 	klog.Info("Serving GRPC")
 	return d.srv.Serve(lis)
 }
 
-func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	klog.Infof("GRPC call: %s", info.FullMethod)
+func sanitizeGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Sanitize request for logging
+	sanitizedReq := protosanitizer.StripSecrets(req)
+	klog.V(2).Infof("GRPC Request: %s: %s", info.FullMethod, sanitizedReq)
+
 	resp, err := handler(ctx, req)
 	if err != nil {
-		klog.Errorf("GRPC error: %v", err)
+		klog.Errorf("GRPC Error: %s: %v", info.FullMethod, err)
+	} else {
+		// Optionally log response if needed, but requests are more critical for debugging
+		// klog.V(5).Infof("GRPC Response: %s: %v", info.FullMethod, resp)
 	}
 	return resp, err
+}
+
+func (d *Driver) runMetricsLoop() {
+	// Update metrics immediately
+	d.updateVolumeMetrics()
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		d.updateVolumeMetrics()
+	}
+}
+
+func (d *Driver) updateVolumeMetrics() {
+	if d.client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	volumes, err := d.client.GetVolumes(ctx)
+	if err != nil {
+		klog.Warningf("Failed to update volume metrics: %v", err)
+		return
+	}
+	metrics.DriverVolumesTotal.Set(float64(len(volumes)))
 }
