@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/scaleoutsean/santricity-go/csi/driver"
@@ -22,6 +23,7 @@ var (
 	version       = flag.Bool("version", false, "Print the version and exit")
 	metricsPort   = flag.String("metrics-port", "8080", "Port to serve Prometheus metrics on")
 	logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	protocol      = flag.String("protocol", "", "Force specific protocol for Node ID (iscsi, nvme)")
 )
 
 func main() {
@@ -77,17 +79,40 @@ func handle() {
 
 	// If running as Node, try to auto-detect IQN and override nodeID
 	if isNode {
-		if iqn, err := driver.GetISCSIInitiatorName(); err == nil && iqn != "" {
-			klog.Infof("Auto-detected IQN: %s. Using as Node ID.", iqn)
-			// Reset the driver instance or just update the field?
-			// Since driver struct is private fields, we need a setter or just recreate it?
-			// Driver struct has nodeID private.
-			// Let's just recreate it or better yet, make NewDriver smart?
-			// But NewDriver doesn't know 'isNode' yet.
-			// Recreating is safest.
-			drv, _ = driver.NewDriver(*driverName, iqn, *endpoint, *apiUrl, *userId, *password)
+		var detectedID string
+		var protocolErr error
+
+		// Check for explicit preference or default auto-detection
+		preferNVMe := *protocol == "nvme" || *protocol == "" // Default to checking NVMe first if empty
+		preferISCSI := *protocol == "iscsi"
+
+		if preferNVMe {
+			if nqn, err := driver.GetNVMeInitiatorName(); err == nil && nqn != "" {
+				detectedID = nqn
+				klog.Infof("Auto-detected NQN: %s", nqn)
+			} else if *protocol == "nvme" {
+				protocolErr = fmt.Errorf("NVMe protocol forced but no NQN found: %v", err)
+			}
+		}
+
+		// If NVMe failed or wasn't preferred/forced, try iSCSI
+		if detectedID == "" && (preferISCSI || *protocol == "") {
+			if iqn, err := driver.GetISCSIInitiatorName(); err == nil && iqn != "" {
+				detectedID = iqn
+				klog.Infof("Auto-detected IQN: %s", iqn)
+			} else if *protocol == "iscsi" {
+				protocolErr = fmt.Errorf("iSCSI protocol forced but no IQN found: %v", err)
+			}
+		}
+
+		if detectedID != "" {
+			klog.Infof("Using %s as Node ID.", detectedID)
+			drv, _ = driver.NewDriver(*driverName, detectedID, *endpoint, *apiUrl, *userId, *password)
 		} else {
-			klog.Warningf("Could not auto-detect iSCSI IQN: %v. Using provided NodeID: %s", err, *nodeID)
+			if protocolErr != nil {
+				klog.Error(protocolErr)
+			}
+			klog.Warningf("Could not auto-detect NQN or iSCSI IQN. Using provided NodeID: %s", *nodeID)
 		}
 	}
 
