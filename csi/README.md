@@ -179,34 +179,30 @@ EF-Series can't serve two supported protocols at once, but even so - one may hav
 ## Troubleshooting
 
 Check the logs of the controller:
+
 ```bash
 kubectl logs -f deployment/santricity-csi-controller -n kube-system -c csi-driver
 ```
 
+**NOTE:** you may run SANtricity CSI in debug mode, but note that secrets may leak into debug logs.
+
 Check the logs of the node plugin on a specific node:
+
 ```bash
 kubectl logs -f daemonset/santricity-csi-node -n kube-system
-```
-
-## Versioning and releases
-
-```sh
-vim ./csi/driver/driver.go
-git tag csi-v<version>
-git push origin master --tags
 ```
 
 ## Monitoring
 
 The driver exposes Prometheus metrics on port 8080 (default) at `/metrics`.
 
-### Available Metrics
+### Available metrics
 
 - `santricity_api_requests_total`: Counter of API requests to the array, labeled by method, path, and status code.
 - `santricity_api_request_duration_seconds`: Histogram of API request latencies.
 - `santricity_volumes_total`: Gauge of total volumes on the array (updated every 5 minutes).
 
-### scraping Configuration
+### Scraping configuration
 
 Add the following annotations to your driver Pods (DaemonSet/Deployment) to enable automatic scraping:
 

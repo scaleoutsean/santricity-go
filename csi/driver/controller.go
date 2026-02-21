@@ -244,11 +244,17 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	isNVMe := strings.HasPrefix(nodeID, "nqn.")
 
 	if isISCSI {
-		klog.Infof("Ensuring host exists for IQN: %s", nodeID)
-		host, hostErr = d.client.EnsureHostForIQN(ctx, nodeID)
+		klog.Infof("Looking up host for IQN: %s", nodeID)
+		host, hostErr = d.client.GetHostForPort(ctx, nodeID)
+		if hostErr == nil && host.HostRef == "" {
+			hostErr = status.Errorf(codes.NotFound, "Host for IQN %s not found on array. Please create it manually.", nodeID)
+		}
 	} else if isNVMe {
-		klog.Infof("Ensuring host exists for NQN: %s", nodeID)
-		host, hostErr = d.client.EnsureHostForNQN(ctx, nodeID)
+		klog.Infof("Looking up host for NQN: %s", nodeID)
+		host, hostErr = d.client.GetHostForPort(ctx, nodeID)
+		if hostErr == nil && host.HostRef == "" {
+			hostErr = status.Errorf(codes.NotFound, "Host for NQN %s not found on array. Please create it manually.", nodeID)
+		}
 	} else {
 		return nil, status.Errorf(codes.InvalidArgument, "Node ID %s format not recognized (must start with iqn. or nqn.)", nodeID)
 	}
@@ -267,7 +273,8 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	// Check if already mapped to this host
 	for _, m := range vol.Mappings {
 		// We match MapRef to HostRef
-		if m.MapRef == host.HostRef {
+		// Also check if mapped to HostGroup (ClusterRef) of which this Host is a member
+		if m.MapRef == host.HostRef || (host.ClusterRef != "" && m.MapRef == host.ClusterRef) {
 			klog.Infof("Volume %s already mapped to host %s (LUN %d)", volID, host.Label, m.LunNumber)
 			return &csi.ControllerPublishVolumeResponse{
 				PublishContext: map[string]string{
@@ -368,7 +375,7 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 		}
 
 		for _, m := range vol.Mappings {
-			if m.MapRef == host.HostRef {
+			if m.MapRef == host.HostRef || (host.ClusterRef != "" && m.MapRef == host.ClusterRef) {
 				mappingsToDelete = append(mappingsToDelete, m)
 			}
 		}

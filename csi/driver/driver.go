@@ -20,11 +20,10 @@ import (
 )
 
 var (
-	DriverName = "santricity.scaleoutsean.github.io"
-)
+	DriverName = "santricity.scaleoutsean.github.io"	GitCommit  = "unknown")
 
 const (
-	Version = "0.1.12"
+	Version = "0.1.14"
 )
 
 type Driver struct {
@@ -52,7 +51,7 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 	if driverName == "" {
 		driverName = DriverName
 	}
-	klog.Infof("Driver: %v Version: %v", driverName, Version)
+	klog.Infof("Driver: %v Version: %v Commit: %v", driverName, Version, GitCommit)
 
 	// If API URL is provided, initialize client
 	var client *santricity.Client

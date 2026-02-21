@@ -64,6 +64,7 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--controller=false"
             - "--node=true"
+            - "--metrics-port=8081"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -84,6 +85,10 @@ spec:
               mountPath: /dev
             - name: iscsi-dir
               mountPath: /etc/iscsi
+              readOnly: true
+            - name: nvme-dir
+              mountPath: /etc/nvme
+              readOnly: true
             - name: run-lock-dir
               mountPath: /run/lock
         - name: csi-node-driver-registrar
@@ -127,7 +132,12 @@ spec:
         - name: iscsi-dir
           hostPath:
             path: /etc/iscsi
-            type: Directory
+            type: DirectoryOrCreate
+        - name: nvme-dir
+          hostPath:
+            path: /etc/nvme
+            type: DirectoryOrCreate
+
         - name: run-lock-dir
           hostPath:
             path: /run/lock

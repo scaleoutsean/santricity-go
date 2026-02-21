@@ -10,7 +10,9 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o santricity-csi ./csi/main.go
+# Allow build args to override version/commit
+ARG GO_VERSION_LDFLAGS="-X 'github.com/scaleoutsean/santricity-go/csi/driver.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown)'"
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="${GO_VERSION_LDFLAGS}" -o santricity-csi ./csi/main.go
 
 # Final Image
 FROM alpine:3.23
