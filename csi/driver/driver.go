@@ -20,7 +20,9 @@ import (
 )
 
 var (
-	DriverName = "santricity.scaleoutsean.github.io"	GitCommit  = "unknown")
+	DriverName = "santricity.scaleoutsean.github.io"
+	GitCommit  = "unknown"
+)
 
 const (
 	Version = "0.1.14"
