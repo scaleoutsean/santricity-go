@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Version = "0.1.20"
+	Version = "0.1.21"
 )
 
 type Driver struct {
@@ -60,6 +60,7 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 
 	// If API URL is provided, initialize client
 	var client *santricity.Client
+	var dataIPs []string
 
 	// Fallback to Env vars if flags are empty, similar to CLI
 	if apiUrl == "" {
@@ -144,7 +145,6 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 		client = santricity.NewAPIClient(context.Background(), config)
 
 		// Check for Data IPs override (for environments where management and data are split)
-		var dataIPs []string
 		dataIPsEnv := os.Getenv("SANTRICITY_DATA_IPS")
 		if dataIPsEnv != "" {
 			parts := strings.Split(dataIPsEnv, ",")
@@ -155,6 +155,8 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 				}
 			}
 			klog.Infof("Using explicit Data IPs for target portals: %v", dataIPs)
+		} else {
+			klog.Infof("No SANTRICITY_DATA_IPS configured; defaulting to Management IPs for data transport.")
 		}
 
 		// Verify connectivity immediately
