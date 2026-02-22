@@ -327,6 +327,11 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 		return nil, status.Error(codes.InvalidArgument, "Start/Target paths missing")
 	}
 
+	// TODO: Handle Block Volume vs Mount Volume.
+	// Currently assumes Mount Volume (Filesystem) and creates a directory via MkdirAll.
+	// For Block Volume, targetPath should be a file, not a directory.
+	// We need to check req.GetVolumeCapability().GetBlock() vs GetMount() and branch accordingly.
+
 	// Mkdir target
 	if err := os.MkdirAll(targetPath, 0750); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create target path %s: %v", targetPath, err)

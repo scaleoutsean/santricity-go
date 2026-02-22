@@ -162,7 +162,10 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		if len(pools) == 0 {
 			return nil, status.Errorf(codes.ResourceExhausted, "No storage pools found matching requirements (mediaType=%s, name=%s)", mediaType, poolName)
 		}
-		// Pick the first pool (simplistic approach)
+		// TODO: Implement stricter or smarter pool selection logic.
+		// Current logic simplistically picks the first available pool that matches size/mediaType criteria.
+		// This legacy behavior (inherited from old Trident driver) can lead to unpredictable placement ("dump data anywhere").
+		// Future improvements should consider specific pool selection policies, capacity balancing, or explicit errors if no specific pool is targeted.
 		pool := pools[0]
 		selectedPoolRef = pool.VolumeGroupRef
 		klog.Infof("Selected storage pool by Name/Search: %s (%s)", pool.Label, pool.VolumeGroupRef)

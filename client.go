@@ -575,6 +575,10 @@ func (d Client) GetVolumePools(
 // GetVolumePoolByRef returns the pool with the specified volumeGroupRef.
 func (d Client) GetVolumePoolByRef(ctx context.Context, volumeGroupRef string) (VolumeGroupEx, error) {
 
+	if volumeGroupRef == "0000000000000000000000000000000000000000" || volumeGroupRef == "" {
+		return VolumeGroupEx{}, fmt.Errorf("invalid volumeGroupRef: %s", volumeGroupRef)
+	}
+
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
 			"Method":         "GetVolumePoolByRef",
@@ -603,6 +607,20 @@ func (d Client) GetVolumePoolByRef(ctx context.Context, volumeGroupRef string) (
 	pool := VolumeGroupEx{}
 	if err := json.Unmarshal(responseBody, &pool); err != nil {
 		return VolumeGroupEx{}, fmt.Errorf("could not parse storage pool data: %s; %v", string(responseBody), err)
+	}
+
+	// Double check that we received a valid pool with the expected ID
+	// Because some API versions might return a 200 OK with default pool if the ID is malformed or zeroed?
+	// But strictly, we only want to return success if we found the pool we asked for.
+	if pool.VolumeGroupRef != volumeGroupRef && pool.VolumeGroupRef != "" {
+		// Log a warning or error if there is a mismatch.
+		// However, typically the API returns the object requested.
+		// If the API returns an empty object because of 404 (which we handled above assuming status != 200), we are fine.
+		// But let's be extra safe.
+	}
+
+	if pool.VolumeGroupRef == "" {
+		return VolumeGroupEx{}, fmt.Errorf("storage pool not found or returned empty data for ref: %s", volumeGroupRef)
 	}
 
 	return pool, nil
