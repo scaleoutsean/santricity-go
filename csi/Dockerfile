@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-X 'github.com/scaleoutsean/sant
 
 # Final Image
 FROM alpine:3.23
-RUN apk add --no-cache ca-certificates multipath-tools util-linux e2fsprogs xfsprogs open-iscsi procps btrfs-progs bcachefs-tools
+RUN apk add --no-cache ca-certificates multipath-tools util-linux e2fsprogs xfsprogs open-iscsi procps btrfs-progs bcachefs-tools nvme-cli
 # Note: open-iscsi provides iscsiadm
 
 # Setup minimal env for iscsi tools if needed
