@@ -282,18 +282,36 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		}
 
 		var portals []string
-		sys, err := d.client.GetStorageSystem(ctx)
-		if err == nil && len(sys.Controllers) > 0 {
-			for _, c := range sys.Controllers {
-				if len(c.IPAddresses) > 0 {
-					portals = append(portals, c.IPAddresses[0])
-				}
-			}
+		// Use manually configured Data IPs if available
+		if len(d.dataIPs) > 0 {
+			portals = d.dataIPs
 		} else {
-			// Fallback
-			portals = []string{"127.0.0.1"}
+			// Fallback to Management IPs discovery
+			sys, err := d.client.GetStorageSystem(ctx)
+			if err == nil && len(sys.Controllers) > 0 {
+				for _, c := range sys.Controllers {
+					if len(c.IPAddresses) > 0 {
+						portals = append(portals, c.IPAddresses[0])
+					}
+				}
+			} else {
+				// Absolute Fallback
+				portals = []string{"127.0.0.1"}
+			}
 		}
+
+		// Simple Round-Robin or randomize?
+		// For now, pick a random portal to distribute initial connections slightly,
+		// or just the first one. Let's pick a random one if multiple are provided.
+		// Actually, standardizing on the first one is easier for debugging unless we need load balancing.
+		// Native multipathing should handle discovery of all paths once connected.
 		targetPortalIP := portals[0]
+		if len(portals) > 1 {
+			// Basic random pick
+			// rand.Seed(time.Now().UnixNano()) // Don't want to reseed every request, assume go runtime handles it well enough or accept determinism
+			// idx := rand.Intn(len(portals))
+			// targetPortalIP = portals[idx]
+		}
 
 		if isISCSI {
 			targetSettings, err := d.client.GetTargetSettings(ctx)

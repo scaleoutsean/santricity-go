@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Version = "0.1.19"
+	Version = "0.1.20"
 )
 
 type Driver struct {
@@ -37,6 +37,9 @@ type Driver struct {
 	nodeID   string
 	endpoint string
 	client   *santricity.Client
+
+	// Config
+	dataIPs []string // Override for data path IPs (comma-separated SANTRICITY_DATA_IPS)
 
 	// Server
 	srv *grpc.Server
@@ -140,6 +143,20 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 
 		client = santricity.NewAPIClient(context.Background(), config)
 
+		// Check for Data IPs override (for environments where management and data are split)
+		var dataIPs []string
+		dataIPsEnv := os.Getenv("SANTRICITY_DATA_IPS")
+		if dataIPsEnv != "" {
+			parts := strings.Split(dataIPsEnv, ",")
+			for _, p := range parts {
+				ip := strings.TrimSpace(p)
+				if ip != "" {
+					dataIPs = append(dataIPs, ip)
+				}
+			}
+			klog.Infof("Using explicit Data IPs for target portals: %v", dataIPs)
+		}
+
 		// Verify connectivity immediately
 		klog.Info("Verifying SANtricity API connectivity...")
 		checkCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -163,6 +180,7 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 		nodeID:   nodeID,
 		endpoint: endpoint,
 		client:   client,
+		dataIPs:  dataIPs,
 
 		reaperEnabled:       strings.EqualFold(os.Getenv("SANTRICITY_ENABLE_REAPER"), "true"),
 		reaperInterval:      60 * time.Second, // Default 60s

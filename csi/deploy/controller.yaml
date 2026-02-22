@@ -85,6 +85,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: SANTRICITY_ENDPOINT
               value: "https://10.10.10.10:8443,https://10.10.10.11:8443" # EDIT ME. Separate multiple controller IPs with commas.
+            - name: SANTRICITY_DATA_IPS
+              value: "" # Optional: Comma-separated list of data IPs (e.g. 192.168.1.1,192.168.2.1) for iSCSI/NVMe-oF if different from management IPs.
             - name: SANTRICITY_USERNAME
               valueFrom:
                 secretKeyRef:
