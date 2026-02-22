@@ -89,6 +89,9 @@ spec:
             - name: nvme-dir
               mountPath: /etc/nvme
               readOnly: true
+            - name: sys-dir
+              mountPath: /sys
+              readOnly: true
             - name: run-lock-dir
               mountPath: /run/lock
         - name: csi-node-driver-registrar
@@ -137,6 +140,10 @@ spec:
           hostPath:
             path: /etc/nvme
             type: DirectoryOrCreate
+        - name: sys-dir
+          hostPath:
+            path: /sys
+            type: Directory
 
         - name: run-lock-dir
           hostPath:

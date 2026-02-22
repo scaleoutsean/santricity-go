@@ -77,9 +77,9 @@ func DisconnectNVMeSubsystem(ctx context.Context, targetNQN string) error {
 	return nil
 }
 
-// FindNVMeDeviceForNQN locates the /dev/nvmeXnY device for a given NQN
-// This is the tricky part. We need to scan /sys/class/nvme-subsystem/nvme-subsys*/
-func FindNVMeDeviceForNQN(ctx context.Context, targetNQN string) (string, error) {
+// FindNVMeDeviceForNQN locates the /dev/nvmeXnY device for a given NQN and LUN (NSID)
+// This scans /sys/class/nvme-subsystem/nvme-subsys*/nvmeXnY/nsid
+func FindNVMeDeviceForNQN(ctx context.Context, targetNQN string, lun int32) (string, error) {
 	// 1. Iterate over /sys/class/nvme-subsystem/nvme-subsys*
 	entries, err := os.ReadDir(NVMeSysPath)
 	if os.IsNotExist(err) {
@@ -95,8 +95,9 @@ func FindNVMeDeviceForNQN(ctx context.Context, targetNQN string) (string, error)
 			continue
 		}
 
-		// Read the NQN
-		nqnPath := filepath.Join(NVMeSysPath, name, "subsysnqn")
+		// Read the NQN of this subsystem
+		subsysDir := filepath.Join(NVMeSysPath, name)
+		nqnPath := filepath.Join(subsysDir, "subsysnqn")
 		content, err := os.ReadFile(nqnPath)
 		if err != nil {
 			klog.Warningf("Failed to read %s: %v", nqnPath, err)
@@ -105,31 +106,56 @@ func FindNVMeDeviceForNQN(ctx context.Context, targetNQN string) (string, error)
 
 		foundNQN := strings.TrimSpace(string(content))
 		if foundNQN == targetNQN {
-			// Found the subsystem! Now find the namespaces (block devices)
-			// Hierarchy: /sys/class/nvme-subsystem/nvme-subsysX/nvmeY/nvmeYnZ
-
-			subsysDir := filepath.Join(NVMeSysPath, name)
+			// Found the correct subsystem!
+			// Check items in subsystem directory for namespaces (e.g. nvme0n1)
 			subItems, err := os.ReadDir(subsysDir)
 			if err != nil {
 				return "", fmt.Errorf("failed to read subsystem dir %s: %v", subsysDir, err)
 			}
 
+			targetNSID := fmt.Sprintf("%d", lun)
+
+			// Strategy 1: Look for namespaces directly under subsystem (e.g. /sys/class/nvme-subsystem/nvme-subsys0/nvme0n1)
 			for _, item := range subItems {
-				// We look for controllers (nvme0, nvme1, etc.)
+				if nvmeNamespaceRegex.MatchString(item.Name()) {
+					nsPath := filepath.Join(subsysDir, item.Name())
+					nsidPath := filepath.Join(nsPath, "nsid")
+
+					nsidBytes, err := os.ReadFile(nsidPath)
+					if err == nil {
+						nsidStr := strings.TrimSpace(string(nsidBytes))
+						if nsidStr == targetNSID {
+							devPath := fmt.Sprintf("/dev/%s", item.Name())
+							klog.Infof("Found matching NVMe namespace %s for NQN=%s LUN=%d (NSID=%s)", devPath, targetNQN, lun, nsidStr)
+							return devPath, nil
+						}
+					}
+				}
+			}
+
+			// Strategy 2: Look for namespaces under controllers (e.g. /sys/class/nvme-subsystem/nvme-subsys0/nvme0/nvme0n1)
+			for _, item := range subItems {
 				if nvmeControllerRegex.MatchString(item.Name()) {
-					// It's a controller. Check inside for namespaces.
-					// The controller directory contains namespaces like nvme0n1
 					ctrlPath := filepath.Join(subsysDir, item.Name())
 					ctrlItems, err := os.ReadDir(ctrlPath)
-					if err != nil {
-						continue
-					}
+					if err == nil {
+						for _, ctrlItem := range ctrlItems {
+							if nvmeNamespaceRegex.MatchString(ctrlItem.Name()) {
+								nsPath := filepath.Join(ctrlPath, ctrlItem.Name())
+								nsidPath := filepath.Join(nsPath, "nsid")
 
-					for _, ctrlItem := range ctrlItems {
-						if nvmeNamespaceRegex.MatchString(ctrlItem.Name()) {
-							// Found a namespace! e.g. nvme0n1
-							devPath := fmt.Sprintf("/dev/%s", ctrlItem.Name())
-							return devPath, nil
+								nsidBytes, err := os.ReadFile(nsidPath)
+								if err == nil {
+									nsidStr := strings.TrimSpace(string(nsidBytes))
+									if nsidStr == targetNSID {
+										// Warning: Usually the device name is unique system-wide (e.g. nvme0n1).
+										// Constructing /dev/nvme0n1 is correct regardless of where we found it in sysfs.
+										devPath := fmt.Sprintf("/dev/%s", ctrlItem.Name())
+										klog.Infof("Found matching NVMe namespace %s via controller %s for NQN=%s LUN=%d (NSID=%s)", devPath, item.Name(), targetNQN, lun, nsidStr)
+										return devPath, nil
+									}
+								}
+							}
 						}
 					}
 				}
@@ -137,20 +163,20 @@ func FindNVMeDeviceForNQN(ctx context.Context, targetNQN string) (string, error)
 		}
 	}
 
-	return "", fmt.Errorf("device not found for NQN %s", targetNQN)
+	return "", fmt.Errorf("device not found for NQN %s LUN %d", targetNQN, lun)
 }
 
 // WaitForNVMeDevice waits for the device to appear
-func WaitForNVMeDevice(ctx context.Context, targetNQN string, timeout time.Duration) (string, error) {
+func WaitForNVMeDevice(ctx context.Context, targetNQN string, lun int32, timeout time.Duration) (string, error) {
 	start := time.Now()
 	for {
-		dev, err := FindNVMeDeviceForNQN(ctx, targetNQN)
+		dev, err := FindNVMeDeviceForNQN(ctx, targetNQN, lun)
 		if err == nil && dev != "" {
 			return dev, nil
 		}
 
 		if time.Since(start) > timeout {
-			return "", fmt.Errorf("timeout waiting for device for NQN %s", targetNQN)
+			return "", fmt.Errorf("timeout waiting for device for NQN %s LUN %d", targetNQN, lun)
 		}
 
 		select {
