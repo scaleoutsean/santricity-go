@@ -11,8 +11,9 @@ COPY . .
 
 # Build the binary
 # Allow build args to override version/commit
-ARG GO_VERSION_LDFLAGS="-X 'github.com/scaleoutsean/santricity-go/csi/driver.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown)'"
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="${GO_VERSION_LDFLAGS}" -o santricity-csi ./csi/main.go
+# Note: $(git ...) expansion happens in the shell, but ARG defaults are literals.
+# To make this work, we must run the command inside the RUN instruction.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-X 'github.com/scaleoutsean/santricity-go/csi/driver.GitCommit=$(git rev-parse HEAD 2>/dev/null || echo unknown)'" -o santricity-csi ./csi/main.go
 
 # Final Image
 FROM alpine:3.23

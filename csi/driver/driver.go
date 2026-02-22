@@ -215,7 +215,8 @@ func (d *Driver) Run(isController, isNode bool) error {
 	klog.Info("Registering Node Server")
 	csi.RegisterNodeServer(d.srv, d)
 
-	if isNode {
+	// Check node identity for iSCSI specific tasks
+	if isNode && strings.HasPrefix(d.nodeID, "iqn.") {
 		// Start iSCSI Session Reaper
 		go d.startReaper()
 	}
