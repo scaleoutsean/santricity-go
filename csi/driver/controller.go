@@ -270,17 +270,65 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 		return nil, status.Errorf(codes.NotFound, "Volume %s not found: %v", volID, err)
 	}
 
+	// Determine Target Portal (IP) and Connection Settings
+	// This logic must run for both new mappings AND existing mappings.
+	// TODO: Replace with robust interface discovery (e.g. filter by "iscsi" or "nvme-roce" interface type)
+	// For now, use the first management IP found on controllers as a fallback.
+	getPublishContext := func(lun int, volWWN string) (map[string]string, error) {
+		ctxMap := map[string]string{
+			"lun":      strconv.Itoa(lun),
+			"volumeID": volID,
+			"wwn":      volWWN,
+		}
+
+		var portals []string
+		sys, err := d.client.GetStorageSystem(ctx)
+		if err == nil && len(sys.Controllers) > 0 {
+			for _, c := range sys.Controllers {
+				if len(c.IPAddresses) > 0 {
+					portals = append(portals, c.IPAddresses[0])
+				}
+			}
+		} else {
+			// Fallback
+			portals = []string{"127.0.0.1"}
+		}
+		targetPortalIP := portals[0]
+
+		if isISCSI {
+			targetSettings, err := d.client.GetTargetSettings(ctx)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "Failed to get iSCSI target settings: %v", err)
+			}
+			klog.Infof("iSCSI Target Settings: NodeName=%s, Portals=%v", targetSettings.NodeName.IscsiNodeName, targetSettings.Portals)
+
+			ctxMap["targetIQN"] = targetSettings.NodeName.IscsiNodeName
+			ctxMap["targetPortal"] = targetPortalIP + ":3260"
+		} else if isNVMe {
+			nvmeSettings, err := d.client.GetNVMeoFSettings(ctx)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "Failed to get NVMeoF target settings: %v", err)
+			}
+			klog.Infof("NVMeoF Target Settings: NvmeNodeName=%s, IscsiNodeName=%v", nvmeSettings.NodeName.NvmeNodeName, nvmeSettings.NodeName.IscsiNodeName)
+
+			ctxMap["targetNQN"] = nvmeSettings.NodeName.NvmeNodeName
+			ctxMap["targetPortal"] = targetPortalIP + ":4420"
+		}
+		return ctxMap, nil
+	}
+
 	// Check if already mapped to this host
 	for _, m := range vol.Mappings {
 		// We match MapRef to HostRef
 		// Also check if mapped to HostGroup (ClusterRef) of which this Host is a member
 		if m.MapRef == host.HostRef || (host.ClusterRef != "" && m.MapRef == host.ClusterRef) {
 			klog.Infof("Volume %s already mapped to host %s (LUN %d)", volID, host.Label, m.LunNumber)
+			pubCtx, err := getPublishContext(m.LunNumber, vol.WorldWideName)
+			if err != nil {
+				return nil, err
+			}
 			return &csi.ControllerPublishVolumeResponse{
-				PublishContext: map[string]string{
-					"lun": strconv.Itoa(m.LunNumber),
-					"wwn": vol.WorldWideName,
-				},
+				PublishContext: pubCtx,
 			}, nil
 		}
 	}
@@ -293,52 +341,9 @@ func (d *Driver) ControllerPublishVolume(ctx context.Context, req *csi.Controlle
 	}
 
 	// 3. Get Target Information and Populate Publish Context
-	publishContext := map[string]string{
-		"lun":      strconv.Itoa(mapping.LunNumber),
-		"volumeID": volID,
-		"wwn":      vol.WorldWideName, // Add WWN to PublishContext for Node stage to construct /dev/disk/by-id/wwn-...
-	}
-
-	// Determine Target Portal (IP)
-	// TODO: Replace with robust interface discovery (e.g. filter by "iscsi" or "nvme-roce" interface type)
-	// For now, use the first management IP found on controllers as a fallback.
-	var portals []string
-	sys, err := d.client.GetStorageSystem(ctx)
-	if err == nil && len(sys.Controllers) > 0 {
-		for _, c := range sys.Controllers {
-			if len(c.IPAddresses) > 0 {
-				portals = append(portals, c.IPAddresses[0])
-			}
-		}
-	} else {
-		// Fallback
-		portals = []string{"127.0.0.1"}
-	}
-	targetPortalIP := portals[0]
-
-	if isISCSI {
-		targetSettings, err := d.client.GetTargetSettings(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to get iSCSI target settings: %v", err)
-		}
-		// Log detailed settings for debugging
-		klog.Infof("iSCSI Target Settings: NodeName=%s, Portals=%v", targetSettings.NodeName.IscsiNodeName, targetSettings.Portals)
-
-		publishContext["targetIQN"] = targetSettings.NodeName.IscsiNodeName
-		publishContext["targetPortal"] = targetPortalIP + ":3260"
-	} else if isNVMe {
-		nvmeSettings, err := d.client.GetNVMeoFSettings(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to get NVMeoF target settings: %v", err)
-		}
-		// Log detailed settings for debugging
-		klog.Infof("NVMeoF Target Settings: NvmeNodeName=%s, IscsiNodeName=%v, RemoteNodeWWN=%v",
-			nvmeSettings.NodeName.NvmeNodeName, nvmeSettings.NodeName.IscsiNodeName, nvmeSettings.NodeName.RemoteNodeWWN)
-
-		publishContext["targetNQN"] = nvmeSettings.NodeName.NvmeNodeName
-		publishContext["targetPortal"] = targetPortalIP + ":4420" // Default NVMe port
-		// Note: NVMe protocols (RoCE vs TCP) might require "transport" field or different ports.
-		// Assuming TCP or RoCE v2 with default port.
+	publishContext, err := getPublishContext(mapping.LunNumber, vol.WorldWideName)
+	if err != nil {
+		return nil, err
 	}
 
 	return &csi.ControllerPublishVolumeResponse{
