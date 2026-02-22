@@ -112,7 +112,7 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 			return nil, status.Errorf(codes.Internal, "Failed to connect NVMe subsystem: %v", err)
 		}
 
-		devicePath, err = WaitForNVMeDevice(ctx, targetNQN, lun, 15*time.Second)
+		devicePath, err = WaitForNVMeDevice(ctx, targetNQN, int32(lun), 15*time.Second)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to find NVMe device: %v", err)
 		}
