@@ -148,6 +148,23 @@ Current capabilities include:
 - [ ] `CLONE_VOLUME`
 - [ ] `GROUP_CONTROLLER_SERVICE`
 
+Access modes:
+
+- [x] `SINGLE_NODE_WRITER`
+- [x] `SINGLE_NODE_SINGLE_WRITER`
+- [x] `SINGLE_NODE_MULTI_WRITER (`MountVolume`, `ReadWriteOnce` access)
+- [ ] `SINGLE_NODE_READER_ONLY` (requires testing, possible improvements)
+- [ ] `MULTI_NODE_READER_ONLY`
+- [ ] `MULTI_NODE_SINGLE_WRITER`
+- [ ] `MULTI_NODE_MULTI_WRITER`
+
+Multi-node access requires host coordination (e.g. Ceph, BeeGFS), but SCSI-3 reservations and `hostGroup` are both supported so that should work out of box.
+
+API access:
+
+- [x] `MountVolume` ("filesystem")
+- [ ] `BlockVolume` (requires changes to CSI Node)
+
 #### Multi-rack deployment
 
 - Deploy CSI Driver "A" with `--driver-name=santricity.rack1`

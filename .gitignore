@@ -8,4 +8,8 @@ tools/iscsi-verify/iscsi-verify
 main
 terraform-provider-santricity
 tests/live_test/live_tester
-
+RELEASE.md
+TODO.md
+docs/
+kubeconfig
+santricity-csi.tar

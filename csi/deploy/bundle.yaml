@@ -1,0 +1,392 @@
+---
+# Source: santricity-csi/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: santricity-csi-controller
+  namespace: default
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app: santricity-csi-controller
+---
+# Source: santricity-csi/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: santricity-csi-node
+  namespace: default
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+    app: santricity-csi-node
+---
+# Source: santricity-csi/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: santricity-csi-credentials
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+stringData:
+  username: ""
+  password: ""
+---
+# Source: santricity-csi/templates/rbac.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: santricity-csi-controller-role
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csinodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments", "volumeattachments/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csidrivers"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "delete", "update", "create"]
+---
+# Source: santricity-csi/templates/rbac.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: santricity-csi-node-role
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "update"]
+---
+# Source: santricity-csi/templates/rbac.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: santricity-csi-controller-binding
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+  - kind: ServiceAccount
+    name: santricity-csi-controller
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: santricity-csi-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: santricity-csi/templates/rbac.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: santricity-csi-node-binding
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+  - kind: ServiceAccount
+    name: santricity-csi-node
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: santricity-csi-node-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: santricity-csi/templates/daemonset-node.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: santricity-csi-node
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: santricity-csi
+      app.kubernetes.io/instance: santricity-csi
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: santricity-csi
+        app.kubernetes.io/instance: santricity-csi
+    spec:
+      serviceAccountName: santricity-csi-node
+      hostNetwork: true # Required for iSCSI/NVMe connectivity
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: csi-driver
+          securityContext:
+            privileged: true
+          image: "ghcr.io/scaleoutsean/santricity-go:latest"
+          imagePullPolicy: Always
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(NODE_ID)"
+            - "--controller=false"
+            - "--node=true"
+            - "--metrics-port=8081"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # ISCSI Session Reaper (disabled by default)
+            - name: SANTRICITY_ENABLE_REAPER
+              value: "false"
+          volumeMounts:
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "Bidirectional"
+            - name: plugin-dir
+              mountPath: /csi
+            - name: device-dir
+              mountPath: /dev
+            - name: iscsi-dir
+              mountPath: /etc/iscsi
+              readOnly: true
+            - name: nvme-dir
+              mountPath: /etc/nvme
+              readOnly: true
+            - name: sys-dir
+              mountPath: /sys
+              readOnly: true
+            - name: run-lock-dir
+              mountPath: /run/lock
+        - name: csi-node-driver-registrar
+          image: "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.8.0"
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/santricity.scaleoutsean.github.io/csi.sock
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+      volumes:
+        - name: kubelet-dir
+          hostPath:
+            # Standard: /var/lib/kubelet
+            path: /var/lib/kubelet
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            # Adjust prefix matching kubelet-dir above
+            path: /var/lib/kubelet/plugins/santricity.scaleoutsean.github.io/
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            # Adjust prefix matching kubelet-dir above
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: device-dir
+          hostPath:
+            path: /dev
+        - name: iscsi-dir
+          hostPath:
+            path: /etc/iscsi
+            type: DirectoryOrCreate
+        - name: nvme-dir
+          hostPath:
+            path: /etc/nvme
+            type: DirectoryOrCreate
+        - name: sys-dir
+          hostPath:
+            path: /sys
+            type: Directory
+        - name: run-lock-dir
+          hostPath:
+            path: /run/lock
+            type: DirectoryOrCreate
+---
+# Source: santricity-csi/templates/deployment-controller.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: santricity-csi-controller
+  labels:
+    helm.sh/chart: santricity-csi-0.1.0
+    app.kubernetes.io/name: santricity-csi
+    app.kubernetes.io/instance: santricity-csi
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: santricity-csi
+      app.kubernetes.io/instance: santricity-csi
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: santricity-csi
+        app.kubernetes.io/instance: santricity-csi
+    spec:
+      serviceAccountName: santricity-csi-controller
+      containers:
+        - name: csi-driver
+          image: "ghcr.io/scaleoutsean/santricity-go:latest"
+          imagePullPolicy: Always
+          args:
+            - "--endpoint=$(CSI_ENDPOINT)"
+            - "--nodeid=$(NODE_ID)"
+            - "--controller=true"
+            - "--node=false"
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: SANTRICITY_ENDPOINT
+              value: "https://10.10.10.10:8443,https://10.10.10.11:8443"
+            - name: SANTRICITY_DATA_IPS
+              value: "192.168.1.1,192.168.1.2,192.168.2.1,192.168.2.2"
+            - name: SANTRICITY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: santricity-csi-credentials
+                  key: username
+            - name: SANTRICITY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: santricity-csi-credentials
+                  key: password
+            - name: SANTRICITY_VERIFY_TLS
+              value: "false"
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        # Sidecars
+        - name: csi-provisioner
+          image: "registry.k8s.io/sig-storage/csi-provisioner:v3.5.0"
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--extra-create-metadata=true"
+            - "--leader-election=true"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-attacher
+          image: "registry.k8s.io/sig-storage/csi-attacher:v4.3.0"
+          args:
+            - "--leader-election=true"
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+        - name: csi-resizer
+          image: "registry.k8s.io/sig-storage/csi-resizer:v1.8.0"
+          args:
+            - "--leader-election=true"
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /var/lib/csi/sockets/pluginproxy/
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
+---
+# Source: santricity-csi/templates/csidriver.yaml
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: santricity.scaleoutsean.github.io
+spec:
+  attachRequired: true
+  podInfoOnMount: true
+  fsGroupPolicy: ReadWriteOnceWithFSType
+  volumeLifecycleModes:
+  - Persistent

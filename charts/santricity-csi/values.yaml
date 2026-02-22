@@ -1,0 +1,50 @@
+# Default values for santricity-csi.
+
+image:
+  repository: ghcr.io/scaleoutsean/santricity-go
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+controller:
+  replicas: 2
+  endpoint: "https://10.10.10.10:8443,https://10.10.10.11:8443" # Management IPs
+  dataIPs: "192.168.1.1,192.168.1.2,192.168.2.1,192.168.2.2" # Comma-separated list of iSCSI/NVMe-oF data IPs
+  credentials:
+    username: ""
+    password: ""
+  verifyTLS: false
+  
+node:
+  enableReaper: false
+
+serviceAccount:
+  create: true
+  controllerName: santricity-csi-controller
+  nodeName: santricity-csi-node
+
+rbac:
+  create: true
+
+sidecars:
+  provisioner:
+    image: registry.k8s.io/sig-storage/csi-provisioner:v3.5.0
+  attacher:
+    image: registry.k8s.io/sig-storage/csi-attacher:v4.3.0
+  resizer:
+    image: registry.k8s.io/sig-storage/csi-resizer:v1.8.0
+  registrar:
+    image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.8.0
+
+storageClasses: []
+#  - name: santricity-nvme-raid1
+#    isDefault: false
+#    poolID: "0000000000000000000000000000000000000000" # REQUIRED: Replace with actual DDP Pool ID (Ref)
+#    # OR use poolName in parameters below if preferred (poolID takes precedence)
+#    reclaimPolicy: Delete
+#    volumeBindingMode: Immediate
+#    allowVolumeExpansion: true
+#    parameters:
+#      mediaType: "nvme"
+#      fsType: "xfs"
+#      raidLevel: "raid1"

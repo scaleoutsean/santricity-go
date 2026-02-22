@@ -1,64 +1,27 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: santricity-csi-node
-  namespace: santricity-csi
----
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: santricity-csi-node-role
-rules:
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list", "watch", "update"]
-  - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["get", "list"]
-  - apiGroups: [""]
-    resources: ["persistentvolumes"]
-    verbs: ["get", "list", "watch", "update"]
-  - apiGroups: ["storage.k8s.io"]
-    resources: ["volumeattachments"]
-    verbs: ["get", "list", "watch", "update"]
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: santricity-csi-node-binding
-subjects:
-  - kind: ServiceAccount
-    name: santricity-csi-node
-    namespace: santricity-csi
-roleRef:
-  kind: ClusterRole
-  name: santricity-csi-node-role
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: santricity-csi-node
-  namespace: santricity-csi
+  name: {{ include "santricity-csi.fullname" . }}-node
+  labels:
+    {{- include "santricity-csi.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app: santricity-csi-node
+      {{- include "santricity-csi.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: santricity-csi-node
+        {{- include "santricity-csi.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: santricity-csi-node
-      hostNetwork: true # Required for iSCSI connectivity
+      serviceAccountName: {{ .Values.serviceAccount.nodeName }}
+      hostNetwork: true # Required for iSCSI/NVMe connectivity
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: csi-driver
           securityContext:
             privileged: true
-          # image: santricity-csi:latest # Local dev
-          image: ghcr.io/scaleoutsean/santricity-go:latest
-          imagePullPolicy: Always
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
             - "--nodeid=$(NODE_ID)"
@@ -74,7 +37,7 @@ spec:
                   fieldPath: spec.nodeName
             # ISCSI Session Reaper (disabled by default)
             - name: SANTRICITY_ENABLE_REAPER
-              value: "false"
+              value: "{{ .Values.node.enableReaper }}"
           volumeMounts:
             - name: kubelet-dir
               mountPath: /var/lib/kubelet
@@ -95,7 +58,7 @@ spec:
             - name: run-lock-dir
               mountPath: /run/lock
         - name: csi-node-driver-registrar
-          image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.8.0
+          image: "{{ .Values.sidecars.registrar.image }}"
           args:
             - "--csi-address=$(ADDRESS)"
             - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
@@ -114,9 +77,6 @@ spec:
         - name: kubelet-dir
           hostPath:
             # Standard: /var/lib/kubelet
-            # k0s: /var/lib/k0s/kubelet
-            # k3s: /var/lib/rancher/k3s/agent/kubelet
-            # snap: /var/snap/microk8s/common/var/lib/kubelet
             path: /var/lib/kubelet
             type: Directory
         - name: plugin-dir
@@ -144,7 +104,6 @@ spec:
           hostPath:
             path: /sys
             type: Directory
-
         - name: run-lock-dir
           hostPath:
             path: /run/lock
