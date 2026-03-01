@@ -1,6 +1,8 @@
+[![Go](https://github.com/scaleoutsean/santricity-go/actions/workflows/go.yml/badge.svg)](https://github.com/scaleoutsean/santricity-go/actions/workflows/go.yml)
+
 # SANtricity Go Client
 
-A Go client library for the NetApp SANtricity Web Services API, initially extracted from NetApp Trident and then improved.
+A Go client library for the NetApp SANtricity API, initially extracted from NetApp Trident and subsequently subtantially improved.
 
 Sub-projects:
 
@@ -93,6 +95,10 @@ santricity-cli get volumes -o json | jq '.[] | select(.metadata != null) | {labe
 
 # Example: Create host (Linux, NVMe-oF (RoCE))
 santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmexpress:uuid:b6087fac-aef6-4e75-85c1-abd7078c94f9" --host-type 28 --insecure
+
+# Example: Create volume for a legacy application that needs 512 byte sector sizes on NVMe pool
+santricity-cli create volume --name my-512-vol --size 10 --pool-id "040000006D039EA000493A26000004FD6996CBC0" --block-size 512 --insecure
+
 ```
 
 ### Wrap Go CLI in Python scripts

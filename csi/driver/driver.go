@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Version = "1.0.0-alpha.2"
+	Version = "1.0.0-alpha.3"
 )
 
 type Driver struct {

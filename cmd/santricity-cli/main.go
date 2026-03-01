@@ -229,6 +229,49 @@ func main() {
 	createHostCmd.Flags().StringVar(&groupID, "group-id", "", "Host Group ID (optional)")
 
 	createCmd.AddCommand(createHostCmd)
+
+	var volName, volPoolID, volSizeStr, volMediaType, volFSType, volRaidLevel string
+	var volBlockSize int
+	var createVolumeCmd = &cobra.Command{
+		Use:   "volume",
+		Short: "Create a volume",
+		Run: func(cmd *cobra.Command, args []string) {
+			if volName == "" || volPoolID == "" || volSizeStr == "" {
+				log.Fatal("Error: --name, --pool-id, and --size are required")
+			}
+			// Parse size (simple GB assumption for CLI or parse bytes? Client usage implies bytes)
+			// Let's assume input is GB for CLI convenience, or bytes?
+			// The snippet in README says "size" but doesn't specify unit.
+			// Let's assume GB for simplicity in CLI.
+			// Wait, client.CreateVolume takes bytes.
+			var sizeGB uint64
+			fmt.Sscanf(volSizeStr, "%d", &sizeGB) // Simple parsing
+			sizeBytes := sizeGB * 1024 * 1024 * 1024
+
+			vol, err := apiClient.CreateVolume(ctx, volName, volPoolID, sizeBytes, volMediaType, volFSType, volRaidLevel, volBlockSize, 0, nil)
+			if err != nil {
+				log.Fatalf("Error creating volume: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(vol, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				log.Printf("Created Volume: %s (Ref: %s, BlockSize: %d)", vol.Label, vol.VolumeRef, vol.BlockSize)
+			}
+		},
+	}
+	createVolumeCmd.Flags().StringVar(&volName, "name", "", "Volume name")
+	createVolumeCmd.Flags().StringVar(&volPoolID, "pool-id", "", "Pool ID (Volume Group Ref)")
+	createVolumeCmd.Flags().StringVar(&volSizeStr, "size", "", "Size in GB")
+	createVolumeCmd.Flags().StringVar(&volMediaType, "media-type", "hdd", "Media Type (hdd, ssd, nvme)")
+	createVolumeCmd.Flags().StringVar(&volFSType, "fstype", "xfs", "Filesystem Type")
+	createVolumeCmd.Flags().StringVar(&volRaidLevel, "raid-level", "raid6", "RAID Level")
+	createVolumeCmd.Flags().IntVar(&volBlockSize, "block-size", 0, "Block Size (e.g. 512, 4096)")
+
+	createCmd.AddCommand(createVolumeCmd)
 	rootCmd.AddCommand(createCmd)
 
 	if err := rootCmd.Execute(); err != nil {

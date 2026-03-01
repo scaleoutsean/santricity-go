@@ -39,6 +39,13 @@ func resourceVolume() *schema.Resource {
 				ForceNew:    true,
 				Description: "The RAID level for the volume (e.g. raid1, raid6). Defaults to raid6.",
 			},
+			"block_size": {
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Computed:    true,
+				ForceNew:    true,
+				Description: "The block size of the volume (e.g. 512, 4096). Defaults to pool recommended size if not specified.",
+			},
 			"volume_id": {
 				Type:        schema.TypeString,
 				Computed:    true,
@@ -60,6 +67,7 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	poolID := d.Get("pool_id").(string)
 	sizeGB := d.Get("size_gb").(int)
 	raidLevel := d.Get("raid_level").(string)
+	blockSize := d.Get("block_size").(int)
 
 	// Round up size_gb to multiple of 4
 	if remainder := sizeGB % 4; remainder != 0 {
@@ -83,7 +91,7 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	// Library CreateVolume signature:
 	// func (d Client) CreateVolume(ctx context.Context, name string, volumeGroupRef string, size uint64, mediaType, fstype string, raidLevel string, blockSize int, segmentSize int, extraTags map[string]string) (VolumeEx, error)
 
-	vol, err := client.CreateVolume(ctx, name, poolID, sizeBytes, "hdd", "xfs", raidLevel, 0, 0, nil)
+	vol, err := client.CreateVolume(ctx, name, poolID, sizeBytes, "hdd", "xfs", raidLevel, blockSize, 0, nil)
 	if err != nil {
 		return diag.FromErr(err)
 	}
@@ -91,6 +99,7 @@ func resourceVolumeCreate(ctx context.Context, d *schema.ResourceData, m interfa
 	d.SetId(vol.VolumeRef)
 	d.Set("volume_id", vol.VolumeRef)
 	d.Set("wwn", vol.WorldWideName)
+	d.Set("block_size", vol.BlockSize)
 
 	return resourceVolumeRead(ctx, d, m)
 }
@@ -111,6 +120,7 @@ func resourceVolumeRead(ctx context.Context, d *schema.ResourceData, m interface
 
 	d.Set("name", vol.Label)
 	d.Set("pool_id", vol.VolumeGroupRef)
+	d.Set("block_size", vol.BlockSize)
 
 	// Size conversion
 	// VolumeSize in struct is string representing bytes

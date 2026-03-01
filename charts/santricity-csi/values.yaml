@@ -48,3 +48,4 @@ storageClasses: []
 #      mediaType: "nvme"
 #      fsType: "xfs"
 #      raidLevel: "raid1"
+#      blockSize: "4096" # Optional: 512 or 4096 (default: array recommended)
