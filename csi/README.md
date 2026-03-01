@@ -89,10 +89,12 @@ args:
 This driver is designed to work efficiently with DDP. The recommended strategy is to create a single large DDP on your array and use Kubernetes StorageClasses to define different service levels (e.g., RAID levels or specific pools).
 
 ### 1. Identify your Pool ID
+
 Retrieve the `VolumeGroupRef` (Pool ID) of your DDP from the SANtricity UI or CLI.
 
 ### 2. Configure StorageClasses
-Edit `csi/deploy/csi-driver.yaml` to point to your specific Pool ID. You can define multiple classes for the same pool to expose different RAID features supported by DDP. Another 
+
+Edit `csi/deploy/csi-driver.yaml` to point to your specific Pool ID. You can define multiple classes for the same pool to expose different RAID features supported by DDP. Volume sector size can be defined with the `block_size` parameter.
 
 ## Protocol Support & Limitations
 
@@ -152,7 +154,7 @@ Access modes:
 
 - [x] `SINGLE_NODE_WRITER`
 - [x] `SINGLE_NODE_SINGLE_WRITER`
-- [x] `SINGLE_NODE_MULTI_WRITER (`MountVolume`, `ReadWriteOnce` access)
+- [x] `SINGLE_NODE_MULTI_WRITER` (`MountVolume`, `ReadWriteOnce` access)
 - [ ] `SINGLE_NODE_READER_ONLY` (requires testing, possible improvements)
 - [ ] `MULTI_NODE_READER_ONLY`
 - [ ] `MULTI_NODE_SINGLE_WRITER`
@@ -169,6 +171,8 @@ API access:
 
 - Deploy CSI Driver "A" with `--driver-name=santricity.rack1`
 - Deploy CSI Driver "B" with `--driver-name=santricity.rack2`
+
+For topology-aware provisioning, add `allowedTopologies` to your `StorageClass`:
 
 ```yaml
 allowedTopologies:
