@@ -29,30 +29,52 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
 
 ## Deployment
 
-1. **Configure Credentials**:
-   Edit `csi/deploy/secret-example.yaml` with your SANtricity username and password, then apply it:
-   ```bash
-   kubectl apply -f csi/deploy/secret-example.yaml
-   ```
-   If you convert password to `base64`, remember to strip (or not include) newline character from the string before conversion.
+The recommended way to deploy the driver is using the included Helm chart.
+
+1. **Configure Parameters**:
+   Modify `charts/santricity-csi/values.yaml` to match your environment.
    
-   Edit `csi/deploy/controller.yaml` to set your SANtricity API Endpoint (`SANTRICITY_ENDPOINT`). You can specify multiple management IPs separated by commas (e.g., `"https://10.10.1.10:8443,https://10.10.1.11:8443"`) to ensure the driver remains functional if one controller is unreachable (e.g. during upgrades or network issues). 
+   *   **Credentials**: Set `controller.credentials.username` and `controller.credentials.password`.
+   *   **Controller Endpoint**: Set `controller.endpoint` to your SANtricity management IP(s) (e.g., `"https://10.10.1.10:8443"`).
+   *   **Data IPs**: Set `controller.dataIPs` to the iSCSI/NVMe-oF data interfaces.
+   *   **Kubelet Directory**: If using a distribution like k0s, k3s, or MicroK8s, set `node.kubeletDir`.
+       *   **Standard**: `/var/lib/kubelet` (default)
+       *   **k0s**: `/var/lib/k0s/kubelet`
+       *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
+       *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
 
-   Note that SANtricity volume PVC metadata feature is enabled with `--extra-create-metadata=true` on the external sidecar.
-
-
-2. **Verify Kubelet Path (Node Service)**:
-   The default `csi/deploy/node.yaml` uses `/var/lib/kubelet`. If you are using a distribution with a different path, you **must** update the `hostPath` entries in `node.yaml`.
-   *   **k0s**: `/var/lib/k0s/kubelet`
-   *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
-   *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
-
-3. **Deploy Manifests**:
+2. **Install with Helm**:
+   Run the install command from the root of the repository:
 
    ```bash
-   kubectl apply -f csi/deploy/csi-driver.yaml
-   kubectl apply -f csi/deploy/controller.yaml
-   kubectl apply -f csi/deploy/node.yaml
+   helm install santricity-csi ./charts/santricity-csi --namespace kube-system
+   ```
+
+   Or override values directly (example for k0s):
+
+   ```bash
+   helm install santricity-csi ./charts/santricity-csi \
+     --namespace kube-system \
+     --set controller.endpoint="https://10.10.1.10:8443,https://10.10.1.11:8443" \
+     --set controller.credentials.username="admin" \
+     --set controller.credentials.password="password" \
+     --set node.kubeletDir="/var/lib/k0s/kubelet"
+   ```
+
+### Manual Deployment (Alternative)
+
+If you cannot use Helm in your cluster, a single-file manifest is available at `csi/deploy/bundle.yaml`.
+
+1. **Prepare the Manifest**:
+   Open `csi/deploy/bundle.yaml` and edit the following sections:
+   *   **Secret**: Find `kind: Secret` (name `santricity-csi-credentials`) and set `stringData.username` and `stringData.password`.
+   *   **ConfigMap / Controller Deployment**: Find the `Deployment` named `santricity-csi-controller` and update the `SANTRICITY_ENDPOINT` env var or args if hardcoded. (Note: The bundle is generated from default values, so you might need to find where the endpoint is defined).
+   *   **Node DaemonSet**: If using a custom kubelet directory (e.g. k0s), find the `DaemonSet` named `santricity-csi-node` and update all `/var/lib/kubelet` paths to your custom path.
+
+2. **Deploy**:
+
+   ```bash
+   kubectl apply -f csi/deploy/bundle.yaml
    ```
 
 Note about backend names (whether it's one or more):
@@ -68,8 +90,8 @@ Vast majority of users will have one E-Series and one backend per cluster. If yo
 
 Example:
 
-- Backend A (E-Series 1): Uses Portals 10.10.1.10, 10.10.2.11
-- Backend B (E-Series 2): Uses Portals 10.10.3.10, 10.10.4.11
+- Backend A (E-Series 1): Uses API addresses 10.10.1.10, 10.10.2.11
+- Backend B (E-Series 2): Uses API addresses 10.10.3.10, 10.10.4.11
 
 ```yaml
 # Set driver-name in YAML for the first instance and deploy to own namespace

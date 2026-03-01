@@ -40,7 +40,7 @@ spec:
               value: "{{ .Values.node.enableReaper }}"
           volumeMounts:
             - name: kubelet-dir
-              mountPath: /var/lib/kubelet
+              mountPath: {{ .Values.node.kubeletDir }}
               mountPropagation: "Bidirectional"
             - name: plugin-dir
               mountPath: /csi
@@ -67,7 +67,7 @@ spec:
             - name: ADDRESS
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: /var/lib/kubelet/plugins/santricity.scaleoutsean.github.io/csi.sock
+              value: {{ .Values.node.kubeletDir }}/plugins/santricity.scaleoutsean.github.io/csi.sock
           volumeMounts:
             - name: plugin-dir
               mountPath: /csi
@@ -77,17 +77,17 @@ spec:
         - name: kubelet-dir
           hostPath:
             # Standard: /var/lib/kubelet
-            path: /var/lib/kubelet
+            path: {{ .Values.node.kubeletDir }}
             type: Directory
         - name: plugin-dir
           hostPath:
             # Adjust prefix matching kubelet-dir above
-            path: /var/lib/kubelet/plugins/santricity.scaleoutsean.github.io/
+            path: {{ .Values.node.kubeletDir }}/plugins/santricity.scaleoutsean.github.io/
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
             # Adjust prefix matching kubelet-dir above
-            path: /var/lib/kubelet/plugins_registry/
+            path: {{ .Values.node.kubeletDir }}/plugins_registry/
             type: Directory
         - name: device-dir
           hostPath:

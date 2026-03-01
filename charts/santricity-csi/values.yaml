@@ -17,6 +17,7 @@ controller:
   
 node:
   enableReaper: false
+  kubeletDir: /var/lib/kubelet
 
 serviceAccount:
   create: true
