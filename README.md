@@ -107,12 +107,14 @@ The CLI supports creating and managing snapshots (PiT) and snapshot volumes (Lin
 Related concepts ([official FAQs](https://docs.netapp.com/us-en/e-series-santricity/sm-storage/faq-snapshots.html#what-is-a-snapshot-group)):
 - snapshot group - due to Copy-on-Write (CoW), when a snapshot for a volume is created, modified blocks are evacuated to "snapshot reserve" volume(s) that store Point-in-Time (PiT) data.
 - snapshot image - that's a read-only snapshot 
-- snapshot volume - that's a clone linked to base volume via snapshots, elsewhere known as "linked clone". SANtricity supports read-only and read-write (these need own reserve on top of snapshot group, which is used by base volumes) linked clones.
+- snapshot volume - that's a clone linked to its base volume via snapshots, elsewhere known as "linked clone". SANtricity supports read-only and read-write (these need own reserve on top of snapshot group, which is used by base volumes) linked clones.
 
 That's the gist of it - see the offical documentation or my blog for more. There are also consistency groups and group snapshots, which may be confusing and isn't related to "groups" in snapshot groups.
 
 1. **Create a Snapshot Group** (required for the first snapshot of a volume):
+   The `jq` utility can help you find the volumeRef if your system has many volumes.
    ```bash
+   santricity-cli get volumes -o json | jq -r '.[] | select(.label == "my-vol") | .volumeRef'
    santricity-cli create snapshot-group --volume-id "0200000060080E500043C0B80000062C5D6C963B" --name group-vol1 --repo-pct 20
    ```
 

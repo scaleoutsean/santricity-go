@@ -13,20 +13,23 @@ func (c *Client) CreateSnapshotGroup(ctx context.Context, request SnapshotGroupC
 	// Endpoint: /storage-systems/{system-id}/snapshot-groups
 	// Swagger ID: newSnapshotGroup
 
-	systemID, err := c.Connect(ctx)
-	if err != nil {
+	if _, err := c.Connect(ctx); err != nil {
 		return nil, err
 	}
-	path := fmt.Sprintf("/storage-systems/%s/snapshot-groups", systemID)
+	path := "/snapshot-groups"
 
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 
-	_, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create snapshot group: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
 	var group SnapshotGroup
@@ -41,20 +44,23 @@ func (c *Client) CreateSnapshotGroup(ctx context.Context, request SnapshotGroupC
 func (c *Client) CreateSnapshotImage(ctx context.Context, request SnapshotImageCreateRequest) (*SnapshotImage, error) {
 	// Endpoint: /storage-systems/{system-id}/snapshot-images
 
-	systemID, err := c.Connect(ctx)
-	if err != nil {
+	if _, err := c.Connect(ctx); err != nil {
 		return nil, err
 	}
-	path := fmt.Sprintf("/storage-systems/%s/snapshot-images", systemID)
+	path := "/snapshot-images"
 
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 
-	_, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create snapshot image: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
 	var image SnapshotImage
@@ -69,20 +75,23 @@ func (c *Client) CreateSnapshotImage(ctx context.Context, request SnapshotImageC
 func (c *Client) CreateSnapshotVolume(ctx context.Context, request SnapshotVolumeCreateRequest) (*SnapshotVolume, error) {
 	// Endpoint: /storage-systems/{system-id}/snapshot-volumes
 
-	systemID, err := c.Connect(ctx)
-	if err != nil {
+	if _, err := c.Connect(ctx); err != nil {
 		return nil, err
 	}
-	path := fmt.Sprintf("/storage-systems/%s/snapshot-volumes", systemID)
+	path := "/snapshot-volumes"
 
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
 
-	_, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create snapshot volume: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
 	var volume SnapshotVolume

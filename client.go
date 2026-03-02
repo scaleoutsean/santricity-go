@@ -168,8 +168,12 @@ func (d Client) InvokeAPI(
 
 		// Log the request
 		if d.config.DebugTraceFlags["api"] {
-			// Suppress the empty POST body since it contains the array password
-			LogHTTPRequest(request, []byte("<suppressed>"))
+			logBody := requestBody
+			// Simple check for sensitive paths to avoid logging password
+			if strings.Contains(url, "/login") || strings.Contains(url, "session") {
+				logBody = []byte("<suppressed>")
+			}
+			LogHTTPRequest(request, logBody)
 		}
 
 		// Send the request
