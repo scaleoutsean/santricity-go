@@ -2376,3 +2376,79 @@ func (d Client) CheckVolumeDependencies(ctx context.Context, volumeRef string) e
 
 	return nil
 }
+
+// CreateVolumeMapping creates a mapping between a volume and a host or host group.
+func (d Client) CreateVolumeMapping(ctx context.Context, request VolumeMappingCreateRequest) (*LUNMapping, error) {
+	if _, err := d.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := "/volume-mappings"
+
+	jsonBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, responseBody, err := d.InvokeAPI(ctx, jsonBody, "POST", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create volume mapping: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var mapping LUNMapping
+	err = json.Unmarshal(responseBody, &mapping)
+	if err != nil {
+		return nil, err
+	}
+	return &mapping, nil
+}
+
+// GetHosts returns a list of all hosts
+func (d Client) GetHosts(ctx context.Context) ([]Host, error) {
+if _, err := d.Connect(ctx); err != nil {
+return nil, err
+}
+
+resp, body, err := d.InvokeAPI(ctx, nil, "GET", "/hosts")
+if err != nil {
+return nil, err
+}
+
+if resp.StatusCode != 200 {
+return nil, fmt.Errorf("failed to get hosts: %d", resp.StatusCode)
+}
+
+var hosts []Host
+if err := json.Unmarshal(body, &hosts); err != nil {
+return nil, err
+}
+
+return hosts, nil
+}
+
+// GetVolumeMappings returns a list of all volume mappings on the array
+func (d Client) GetVolumeMappings(ctx context.Context) ([]LUNMapping, error) {
+if _, err := d.Connect(ctx); err != nil {
+return nil, err
+}
+
+response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/volume-mappings")
+if err != nil {
+return nil, fmt.Errorf("failed to get volume mappings: %v", err)
+}
+
+if response.StatusCode != http.StatusOK {
+return nil, fmt.Errorf("failed to get volume mappings: status %d", response.StatusCode)
+}
+
+var mappings []LUNMapping
+err = json.Unmarshal(responseBody, &mappings)
+if err != nil {
+return nil, fmt.Errorf("failed to unmarshal volume mappings: %v", err)
+}
+
+return mappings, nil
+}

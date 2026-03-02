@@ -381,3 +381,12 @@ type SnapshotVolume struct {
 	Label       string `json:"label"`
 	Status      string `json:"status"`
 }
+
+type Host struct {
+ClusterRef     string `json:"clusterRef"`
+HostRef        string `json:"hostRef"`
+Name           string `json:"name"`
+Label          string `json:"label"`
+HostTypeIndex  int    `json:"hostTypeIndex"`
+IsSAControlled bool   `json:"isSAControlled"`
+}

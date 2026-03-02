@@ -138,11 +138,25 @@ func main() {
 		Use:   "volumes",
 		Short: "List volumes",
 		Run: func(cmd *cobra.Command, args []string) {
+			volNameFilter, _ := cmd.Flags().GetString("volume-name")
+
 			apiClient.SetIncludeRepositoryVolumes(showRepoVols)
 			vols, err := apiClient.GetVolumes(ctx)
 			if err != nil {
 				log.Fatalf("Error getting volumes: %v", err)
 			}
+
+			// Apply Filter
+			var filteredVols []santricity.VolumeEx
+			if volNameFilter != "" {
+				for _, v := range vols {
+					if v.Label == volNameFilter {
+						filteredVols = append(filteredVols, v)
+					}
+				}
+				vols = filteredVols
+			}
+
 			if outputFormat == "json" {
 				b, err := json.MarshalIndent(vols, "", "  ")
 				if err != nil {
@@ -151,12 +165,60 @@ func main() {
 				fmt.Println(string(b))
 			} else {
 				for _, v := range vols {
-					log.Printf("Volume: %s (Size: %s)", v.Label, v.VolumeSize)
+					log.Printf("Volume: %s (Size: %s Ref: %s)", v.Label, v.VolumeSize, v.VolumeRef)
 				}
 			}
 		},
 	}
 	getVolumesCmd.Flags().BoolVar(&showRepoVols, "show-repo-vols", false, "Show internal repository volumes")
+	getVolumesCmd.Flags().String("volume-name", "", "Filter by volume name")
+
+	var getHostsCmd = &cobra.Command{
+		Use:   "hosts",
+		Short: "List hosts",
+		Run: func(cmd *cobra.Command, args []string) {
+			hosts, err := apiClient.GetHosts(ctx)
+			if err != nil {
+				log.Fatalf("Error getting hosts: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(hosts, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				for _, h := range hosts {
+					log.Printf("Host: %s (Ref: %s, Cluster: %s)", h.Label, h.HostRef, h.ClusterRef)
+				}
+			}
+		},
+	}
+	getCmd.AddCommand(getHostsCmd)
+
+	var getMappingsCmd = &cobra.Command{
+		Use:   "mappings",
+		Short: "List volume mappings",
+		Run: func(cmd *cobra.Command, args []string) {
+			mappings, err := apiClient.GetVolumeMappings(ctx)
+			if err != nil {
+				log.Fatalf("Error getting mappings: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(mappings, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				fmt.Printf("%-36s %-10s %-36s %-36s\n", "Ref", "LUN", "Volume", "Target")
+				for _, m := range mappings {
+					fmt.Printf("%-36s %-10d %-36s %-36s\n", m.LunMappingRef, m.LunNumber, m.VolumeRef, m.MapRef)
+				}
+			}
+		},
+	}
+	getCmd.AddCommand(getMappingsCmd)
 
 	var getPoolsCmd = &cobra.Command{
 		Use:   "pools",
@@ -273,6 +335,42 @@ func main() {
 	createVolumeCmd.Flags().StringVar(&volRaidLevel, "raid-level", "raid6", "RAID Level")
 	createVolumeCmd.Flags().IntVar(&volBlockSize, "block-size", 0, "Block Size (e.g. 512, 4096)")
 
+	var mappingVolID, mappingTargetID string
+	var mappingLun int
+	var createMappingCmd = &cobra.Command{
+		Use:   "mapping",
+		Short: "Create a volume mapping",
+		Run: func(cmd *cobra.Command, args []string) {
+			if mappingVolID == "" || mappingTargetID == "" {
+				log.Fatal("Error: --volume-id and --target-id are required")
+			}
+
+			req := santricity.VolumeMappingCreateRequest{
+				MappableObjectID: mappingVolID,
+				TargetID:         mappingTargetID,
+				LunNumber:        mappingLun,
+			}
+
+			mapping, err := apiClient.CreateVolumeMapping(ctx, req)
+			if err != nil {
+				log.Fatalf("Error creating mapping: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(mapping, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				log.Printf("Created Mapping: Volume %s -> Target %s (LUN %d, Ref: %s)", mapping.VolumeRef, mapping.MapRef, mapping.LunNumber, mapping.LunMappingRef)
+			}
+		},
+	}
+	createMappingCmd.Flags().StringVar(&mappingVolID, "volume-id", "", "Volume ID (Ref)")
+	createMappingCmd.Flags().StringVar(&mappingTargetID, "target-id", "", "Target ID (Host or HostGroup Ref)")
+	createMappingCmd.Flags().IntVar(&mappingLun, "lun", 0, "LUN Number (0 for auto-assign)")
+
+	createCmd.AddCommand(createMappingCmd)
 	createCmd.AddCommand(createVolumeCmd)
 	rootCmd.AddCommand(createCmd)
 
@@ -319,19 +417,23 @@ var getSnapshotImagesCmd = &cobra.Command{
 			log.Fatalf("Error getting snapshot images: %v", err)
 		}
 
+		// Fetch volumes to map names
+		volumes, err := apiClient.GetVolumes(ctx)
+		if err != nil {
+			log.Fatalf("Error getting volumes: %v", err)
+		}
+
+		volMap := make(map[string]string)
+		var targetVolID string
+
+		for _, v := range volumes {
+			volMap[v.VolumeRef] = v.Label
+			if v.Label == volNameFilter {
+				targetVolID = v.VolumeRef
+			}
+		}
+
 		if volNameFilter != "" {
-			// Get volume ID from name
-			volumes, err := apiClient.GetVolumes(ctx)
-			if err != nil {
-				log.Fatalf("Error getting volumes for filtering: %v", err)
-			}
-			var targetVolID string
-			for _, v := range volumes {
-				if v.Label == volNameFilter {
-					targetVolID = v.VolumeRef
-					break
-				}
-			}
 			if targetVolID == "" {
 				log.Fatalf("Volume with name '%s' not found", volNameFilter)
 			}
@@ -350,11 +452,18 @@ var getSnapshotImagesCmd = &cobra.Command{
 			jsonData, _ := json.MarshalIndent(images, "", "  ")
 			fmt.Println(string(jsonData))
 		} else {
-			fmt.Printf("%-36s %-36s %-10s %-19s %s\n", "PitRef", "PitGroupRef", "Status", "Timestamp", "Seq")
+			fmt.Printf("%-36s %-20s %-10s %-19s %s\n", "PitRef", "Volume", "Status", "Timestamp", "Seq")
 			for _, i := range images {
 				ts, _ := strconv.ParseInt(i.PitTimestamp, 10, 64)
 				tm := time.Unix(ts, 0)
-				fmt.Printf("%-36s %-36s %-10s %-19s %s\n", i.PitRef, i.PitGroupRef, i.Status, tm.Format("2006-01-02 15:04:05"), i.PitSequenceNumber)
+				volName := volMap[i.BaseVol]
+				if volName == "" {
+					volName = i.BaseVol // Fallback to Ref
+				}
+				if len(volName) > 20 {
+					volName = volName[:17] + "..."
+				}
+				fmt.Printf("%-36s %-20s %-10s %-19s %s\n", i.PitRef, volName, i.Status, tm.Format("2006-01-02 15:04:05"), i.PitSequenceNumber)
 			}
 		}
 	},
