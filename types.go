@@ -364,9 +364,12 @@ type SnapshotGroup struct {
 // SnapshotImage represents a PiT (Point-in-Time Image/Snapshot)
 // API definition name: "Snapshot"
 type SnapshotImage struct {
-	PitRef      string `json:"pitRef"`
-	PitGroupRef string `json:"pitGroupRef"`
-	Status      string `json:"status"`
+	PitRef            string `json:"pitRef"`
+	PitGroupRef       string `json:"pitGroupRef"`
+	Status            string `json:"status"`
+	PitTimestamp      string `json:"pitTimestamp"`
+	PitSequenceNumber string `json:"pitSequenceNumber"`
+	BaseVol           string `json:"baseVol"`
 }
 
 // SnapshotVolume represents a Linked Clone (Snapshot Volume)

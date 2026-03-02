@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	santricity "github.com/scaleoutsean/santricity-go"
 	"github.com/spf13/cobra"
@@ -298,9 +300,9 @@ var getSnapshotGroupsCmd = &cobra.Command{
 			jsonData, _ := json.MarshalIndent(groups, "", "  ")
 			fmt.Println(string(jsonData))
 		} else {
-			fmt.Printf("%-36s %-20s %-10s\n", "ID", "Label", "Status")
+			fmt.Printf("%-36s %-20s %-10s %-36s\n", "ID", "Label", "Status", "BaseVolume")
 			for _, g := range groups {
-				fmt.Printf("%-36s %-20s %-10s\n", g.PitGroupRef, g.Label, g.Status)
+				fmt.Printf("%-36s %-20s %-10s %-36s\n", g.PitGroupRef, g.Label, g.Status, g.BaseVolume)
 			}
 		}
 	},
@@ -310,17 +312,49 @@ var getSnapshotImagesCmd = &cobra.Command{
 	Use:   "snapshot-images",
 	Short: "Get all Snapshot Images",
 	Run: func(cmd *cobra.Command, args []string) {
+		volNameFilter, _ := cmd.Flags().GetString("volume-name")
+
 		images, err := apiClient.GetSnapshotImages(ctx)
 		if err != nil {
 			log.Fatalf("Error getting snapshot images: %v", err)
 		}
+
+		if volNameFilter != "" {
+			// Get volume ID from name
+			volumes, err := apiClient.GetVolumes(ctx)
+			if err != nil {
+				log.Fatalf("Error getting volumes for filtering: %v", err)
+			}
+			var targetVolID string
+			for _, v := range volumes {
+				if v.Label == volNameFilter {
+					targetVolID = v.VolumeRef
+					break
+				}
+			}
+			if targetVolID == "" {
+				log.Fatalf("Volume with name '%s' not found", volNameFilter)
+			}
+
+			// Filter images
+			var filteredImages []santricity.SnapshotImage
+			for _, img := range images {
+				if img.BaseVol == targetVolID {
+					filteredImages = append(filteredImages, img)
+				}
+			}
+			images = filteredImages
+		}
+
 		if outputFormat == "json" {
 			jsonData, _ := json.MarshalIndent(images, "", "  ")
 			fmt.Println(string(jsonData))
 		} else {
-			fmt.Printf("%-36s %-36s %-10s\n", "PitRef", "PitGroupRef", "Status")
+			fmt.Printf("%-36s %-36s %-10s %-19s %s\n", "PitRef", "PitGroupRef", "Status", "Timestamp", "Seq")
 			for _, i := range images {
-				fmt.Printf("%-36s %-36s %-10s\n", i.PitRef, i.PitGroupRef, i.Status)
+				ts, _ := strconv.ParseInt(i.PitTimestamp, 10, 64)
+				tm := time.Unix(ts, 0)
+				fmt.Printf("%-36s %-36s %-10s %-19s %s\n", i.PitRef, i.PitGroupRef, i.Status, tm.Format("2006-01-02 15:04:05"), i.PitSequenceNumber)
 			}
 		}
 	},
@@ -411,6 +445,8 @@ func init() {
 	createSnapshotGroupCmd.Flags().Int("repo-pct", 20, "Repository Percentage")
 	createSnapshotGroupCmd.MarkFlagRequired("volume-id")
 	createSnapshotGroupCmd.MarkFlagRequired("name")
+
+	getSnapshotImagesCmd.Flags().String("volume-name", "", "Filter by Base Volume Name")
 
 	createSnapshotImageCmd.Flags().String("group-id", "", "Snapshot Group ID (Ref)")
 	createSnapshotImageCmd.MarkFlagRequired("group-id")
