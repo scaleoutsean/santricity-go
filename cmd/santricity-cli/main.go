@@ -274,6 +274,13 @@ func main() {
 	createCmd.AddCommand(createVolumeCmd)
 	rootCmd.AddCommand(createCmd)
 
+	getCmd.AddCommand(getSnapshotGroupsCmd)
+	getCmd.AddCommand(getSnapshotImagesCmd)
+
+	createCmd.AddCommand(createSnapshotGroupCmd)
+	createCmd.AddCommand(createSnapshotImageCmd)
+	createCmd.AddCommand(createSnapshotVolumeCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
