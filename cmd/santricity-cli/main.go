@@ -278,3 +278,140 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
+var getSnapshotGroupsCmd = &cobra.Command{
+	Use:   "snapshot-groups",
+	Short: "Get all Snapshot Groups",
+	Run: func(cmd *cobra.Command, args []string) {
+		groups, err := apiClient.GetSnapshotGroups(ctx)
+		if err != nil {
+			log.Fatalf("Error getting snapshot groups: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(groups, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("%-36s %-20s %-10s\n", "ID", "Label", "Status")
+			for _, g := range groups {
+				fmt.Printf("%-36s %-20s %-10s\n", g.PitGroupRef, g.Label, g.Status)
+			}
+		}
+	},
+}
+
+var getSnapshotImagesCmd = &cobra.Command{
+	Use:   "snapshot-images",
+	Short: "Get all Snapshot Images",
+	Run: func(cmd *cobra.Command, args []string) {
+		images, err := apiClient.GetSnapshotImages(ctx)
+		if err != nil {
+			log.Fatalf("Error getting snapshot images: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(images, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("%-36s %-36s %-10s\n", "PitRef", "PitGroupRef", "Status")
+			for _, i := range images {
+				fmt.Printf("%-36s %-36s %-10s\n", i.PitRef, i.PitGroupRef, i.Status)
+			}
+		}
+	},
+}
+
+var createSnapshotGroupCmd = &cobra.Command{
+	Use:   "snapshot-group",
+	Short: "Create a Snapshot Group",
+	Run: func(cmd *cobra.Command, args []string) {
+		volID, _ := cmd.Flags().GetString("volume-id")
+		name, _ := cmd.Flags().GetString("name")
+		repoPct, _ := cmd.Flags().GetInt("repo-pct")
+
+		req := santricity.SnapshotGroupCreateRequest{
+			BaseMappableObjectId: volID,
+			Name:                 name,
+			RepositoryPercentage: repoPct,
+			WarningThreshold:     80,
+			AutoDeleteLimit:      30,
+			FullPolicy:           "purgepit",
+		}
+		group, err := apiClient.CreateSnapshotGroup(ctx, req)
+		if err != nil {
+			log.Fatalf("Error creating snapshot group: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(group, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created Snapshot Group: %s (ID: %s)\n", group.Label, group.PitGroupRef)
+		}
+	},
+}
+
+var createSnapshotImageCmd = &cobra.Command{
+	Use:   "snapshot-image",
+	Short: "Create a Snapshot Image (Instant Snapshot)",
+	Run: func(cmd *cobra.Command, args []string) {
+		groupID, _ := cmd.Flags().GetString("group-id")
+
+		req := santricity.SnapshotImageCreateRequest{
+			GroupId: groupID,
+		}
+		image, err := apiClient.CreateSnapshotImage(ctx, req)
+		if err != nil {
+			log.Fatalf("Error creating snapshot image: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(image, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created Snapshot Image: %s (Group: %s)\n", image.PitRef, image.PitGroupRef)
+		}
+	},
+}
+
+var createSnapshotVolumeCmd = &cobra.Command{
+	Use:   "snapshot-volume",
+	Short: "Create a Snapshot Volume (Linked Clone)",
+	Run: func(cmd *cobra.Command, args []string) {
+		snapImageID, _ := cmd.Flags().GetString("image-id")
+		name, _ := cmd.Flags().GetString("name")
+		accessMode, _ := cmd.Flags().GetString("mode")
+		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
+
+		req := santricity.SnapshotVolumeCreateRequest{
+			SnapshotImageId:      snapImageID,
+			Name:                 name,
+			ViewMode:             accessMode,
+			RepositoryPercentage: repoPct,
+		}
+		vol, err := apiClient.CreateSnapshotVolume(ctx, req)
+		if err != nil {
+			log.Fatalf("Error creating snapshot volume: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(vol, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created Snapshot Volume: %s (ID: %s, BasePIT: %s)\n", vol.Label, vol.SnapshotRef, vol.BasePIT)
+		}
+	},
+}
+
+func init() {
+	createSnapshotGroupCmd.Flags().String("volume-id", "", "Base Volume ID (Ref)")
+	createSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
+	createSnapshotGroupCmd.Flags().Int("repo-pct", 20, "Repository Percentage")
+	createSnapshotGroupCmd.MarkFlagRequired("volume-id")
+	createSnapshotGroupCmd.MarkFlagRequired("name")
+
+	createSnapshotImageCmd.Flags().String("group-id", "", "Snapshot Group ID (Ref)")
+	createSnapshotImageCmd.MarkFlagRequired("group-id")
+
+	createSnapshotVolumeCmd.Flags().String("image-id", "", "Snapshot Image ID (Ref)")
+	createSnapshotVolumeCmd.Flags().String("name", "", "Snapshot Volume Name")
+	createSnapshotVolumeCmd.Flags().String("mode", "readOnly", "Access Mode (readOnly, readWrite)")
+	createSnapshotVolumeCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage (for Copy-on-Write)")
+	createSnapshotVolumeCmd.MarkFlagRequired("image-id")
+	createSnapshotVolumeCmd.MarkFlagRequired("name")
+}

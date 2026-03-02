@@ -223,7 +223,7 @@ EF-Series can't serve two supported protocols at once, but even so - one may hav
 
 Check the logs of the controller:
 
-```bash
+```sh
 kubectl logs -f deployment/santricity-csi-controller -n kube-system -c csi-driver
 ```
 
@@ -231,8 +231,17 @@ kubectl logs -f deployment/santricity-csi-controller -n kube-system -c csi-drive
 
 Check the logs of the node plugin on a specific node:
 
-```bash
+```sh
 kubectl logs -f daemonset/santricity-csi-node -n kube-system
+```
+
+If you upgrade SANtricity CSI and use custom kubelet directory, keep the customization:
+
+```sh
+helm upgrade --install santricity-csi ./charts/santricity-csi \
+  --set node.kubeletDir=/var/lib/k0s/kubelet
+# Uninstall wrong upgrade
+# helm uninstall santricity-csi -n santricity-csi 
 ```
 
 ## Monitoring

@@ -370,10 +370,11 @@ type SnapshotImage struct {
 }
 
 // SnapshotVolume represents a Linked Clone (Snapshot Volume)
-// API definition name: "SnapshotVolume"
+// API definition name: "PitViewEx"
 type SnapshotVolume struct {
-	SnapshotRef string `json:"snapshotRef"` // The ID of the Snapshot Volume (linked clone)
-	BaseVolume  string `json:"baseVolume"`  // The Base Volume it was created from
+	SnapshotRef string `json:"viewRef"` // The ID of the Snapshot Volume (linked clone)
+	BaseVolume  string `json:"baseVol"` // The Base Volume it was created from
+	BasePIT     string `json:"basePIT"` // The Snapshot Image (PiT) this volume accesses
 	Label       string `json:"label"`
 	Status      string `json:"status"`
 }

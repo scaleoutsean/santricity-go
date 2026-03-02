@@ -98,8 +98,41 @@ santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmex
 
 # Example: Create volume for a legacy application that needs 512 byte sector sizes on NVMe pool
 santricity-cli create volume --name my-512-vol --size 10 --pool-id "040000006D039EA000493A26000004FD6996CBC0" --block-size 512 --insecure
-
 ```
+
+### Snapshot Management
+
+The CLI supports creating and managing snapshots (PiT) and snapshot volumes (Linked Clones).
+
+Related concepts ([official FAQs](https://docs.netapp.com/us-en/e-series-santricity/sm-storage/faq-snapshots.html#what-is-a-snapshot-group)):
+- snapshot group - due to Copy-on-Write (CoW), when a snapshot for a volume is created, modified blocks are evacuated to "snapshot reserve" volume(s) that store Point-in-Time (PiT) data.
+- snapshot image - that's a read-only snapshot 
+- snapshot volume - that's a clone linked to base volume via snapshots, elsewhere known as "linked clone". SANtricity supports read-only and read-write (these need own reserve on top of snapshot group, which is used by base volumes) linked clones.
+
+That's the gist of it - see the offical documentation or my blog for more. There are also consistency groups and group snapshots, which may be confusing and isn't related to "groups" in snapshot groups.
+
+1. **Create a Snapshot Group** (required for the first snapshot of a volume):
+   ```bash
+   santricity-cli create snapshot-group --volume-id "0200000060080E500043C0B80000062C5D6C963B" --name group-vol1 --repo-pct 20
+   ```
+
+2. **Create a Snapshot Image** (Instant Snapshot):
+   ```bash
+   # Get the Group ID first
+   santricity-cli get snapshot-groups
+   
+   # Create a snapshot in that group
+   santricity-cli create snapshot-image --group-id "0400000060080E500043C0B80000062D5D6C963E"
+   ```
+
+3. **Create a Snapshot Volume** (Linked Clone from a specific Snapshot Image):
+   ```bash
+   # Get the Snapshot Image ID
+   santricity-cli get snapshot-images
+   
+   # Create a read-only clone
+   santricity-cli create snapshot-volume --image-id "4200000060080E500043C0B80000062E5D6C9641" --name clone-vol1-test --mode readOnly
+   ```
 
 ### Wrap Go CLI in Python scripts
 
