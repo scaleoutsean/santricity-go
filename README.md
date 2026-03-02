@@ -99,6 +99,25 @@ santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmex
 # Example: Create volume for a legacy application that needs 512 byte sector sizes on NVMe pool
 santricity-cli create volume --name my-512-vol --size 10 --pool-id "040000006D039EA000493A26000004FD6996CBC0" --block-size 512 --insecure
 
+### Snapshot Management
+
+```bash
+# create a snapshot group
+santricity-cli create snapshot-group --name "backup-group" --volume-id "<VOLUME_REF>" --repo-pct 20
+
+# create a snapshot image (instant point-in-time)
+santricity-cli create snapshot-image --group-id "<GROUP_REF>"
+
+# list snapshot images (shows timestamp and sequence number)
+santricity-cli get snapshot-images --volume-name "my-data-vol"
+
+# create a linked clone (writable volume) from a snapshot image and map it to a host
+santricity-cli create snapshot-volume \
+  --name "clone-for-dev" \
+  --image-id "<PIT_REF>" \
+  --host-id "<HOST_REF>"
+```
+
 # Example: Get volume by name and output as JSON
 santricity-cli get volumes --volume-name "snap-vol-1" -o json
 

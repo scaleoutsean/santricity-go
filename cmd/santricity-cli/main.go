@@ -539,6 +539,39 @@ var createSnapshotVolumeCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error creating snapshot volume: %v", err)
 		}
+
+		if hostID, _ := cmd.Flags().GetString("host-id"); hostID != "" {
+			// Check if we need to map to HostGroup or Host
+			targetID := hostID
+			host, err := apiClient.GetHostByRef(ctx, hostID)
+			if err == nil {
+				// We found the host, check its cluster ref
+				if host.ClusterRef != "0000000000000000000000000000000000000000" {
+					log.Printf("Note: Host %s is part of Cluster %s. Mapping to Cluster instead.", host.Label, host.ClusterRef)
+					targetID = host.ClusterRef
+				}
+			} else {
+				// Maybe the user passed a HostGroup ID? Or an invalid ID.
+				// We'll proceed with the assumption it's a valid TargetID if GetHost failed (might be a straight cluster ID passed in?)
+				// But strictly speaking --host-id implies a Host.
+				// Let's just warn if we can't look it up, but trust the API to return an error if it's garbage.
+				// Actually, GetHostByRef will likely return error if ID is not a host.
+			}
+
+			mapReq := santricity.VolumeMappingCreateRequest{
+				MappableObjectID: vol.SnapshotRef,
+				TargetID:         targetID,
+				LunNumber:        0, // Auto-assign
+			}
+			mapping, err := apiClient.CreateVolumeMapping(ctx, mapReq)
+			if err != nil {
+				log.Printf("Warning: Snapshot Volume created but mapping failed: %v", err)
+			} else {
+				log.Printf("Mapped Snapshot Volume to Host %s (LUN %d)", mapping.MapRef, mapping.LunNumber)
+				log.Println("WARNING: The snapshot volume is a clone of the original volume. If mapped to the same host, take caution with duplicate filesystem UUIDs and LVM Volume Groups.")
+			}
+		}
+
 		if outputFormat == "json" {
 			jsonData, _ := json.MarshalIndent(vol, "", "  ")
 			fmt.Println(string(jsonData))
@@ -564,6 +597,7 @@ func init() {
 	createSnapshotVolumeCmd.Flags().String("name", "", "Snapshot Volume Name")
 	createSnapshotVolumeCmd.Flags().String("mode", "readOnly", "Access Mode (readOnly, readWrite)")
 	createSnapshotVolumeCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage (for Copy-on-Write)")
+	createSnapshotVolumeCmd.Flags().String("host-id", "", "Optional: Host ID (Ref) to map volume to")
 	createSnapshotVolumeCmd.MarkFlagRequired("image-id")
 	createSnapshotVolumeCmd.MarkFlagRequired("name")
 }
