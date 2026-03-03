@@ -99,10 +99,7 @@ santricity-cli create host --name h3 --type nvmeof --port "nqn.2014-08.org.nvmex
 # Example: Create volume for a legacy application that needs 512 byte sector sizes on NVMe pool
 santricity-cli create volume --name my-512-vol --size 10 --pool-id "040000006D039EA000493A26000004FD6996CBC0" --block-size 512 --insecure
 
-### Snapshot Management
-
-```bash
-# create a snapshot group
+# create a snapshot group; note that DDP allocates repository files in 8GiB increments while classic RAID volume groups are precise
 santricity-cli create snapshot-group --name "backup-group" --volume-id "<VOLUME_REF>" --repo-pct 20
 
 # create a snapshot image (instant point-in-time)
@@ -111,12 +108,11 @@ santricity-cli create snapshot-image --group-id "<GROUP_REF>"
 # list snapshot images (shows timestamp and sequence number)
 santricity-cli get snapshot-images --volume-name "my-data-vol"
 
-# create a linked clone (writable volume) from a snapshot image and map it to a host
+# create a linked clone (writable volume) from a snapshot image and map it to a host (or cluster)
 santricity-cli create snapshot-volume \
   --name "clone-for-dev" \
   --image-id "<PIT_REF>" \
   --host-id "<HOST_REF>"
-```
 
 # Example: Get volume by name and output as JSON
 santricity-cli get volumes --volume-name "snap-vol-1" -o json
@@ -133,11 +129,15 @@ santricity-cli create mapping --volume-id <VOLUME_REF> --target-id <HOST_REF> --
 The CLI supports creating and managing snapshots (PiT) and snapshot volumes (Linked Clones).
 
 Related concepts ([official FAQs](https://docs.netapp.com/us-en/e-series-santricity/sm-storage/faq-snapshots.html#what-is-a-snapshot-group)):
-- snapshot group - due to Copy-on-Write (CoW), when a snapshot for a volume is created, modified blocks are evacuated to "snapshot reserve" volume(s) that store Point-in-Time (PiT) data.
+- snapshot group - due to Copy-on-Write (CoW), when a snapshot for a volume is created, modified data blocks are evacuated to "snapshot reserve" volume(s) that store Point-in-Time (PiT) data.
 - snapshot image - that's a read-only snapshot 
 - snapshot volume - that's a clone linked to its base volume via snapshots, elsewhere known as "linked clone". SANtricity supports read-only and read-write (these need own reserve on top of snapshot group, which is used by base volumes) linked clones.
 
-That's the gist of it - see the offical documentation or my blog for more. There are also consistency groups and group snapshots, which may be confusing and isn't related to "groups" in snapshot groups.
+**NOTE:** 
+- when presenting linked or clone volumes to a host, you are responsible for "re-signaturing" the volume and dealing with any host "confusion" that may result from it. It is generally safer to map a clone to a host that cannot see the base volume.
+- DDP allocates snapshot group capacity in 8GiB units, so array snapshots on volumes smaller than 16GiB are space-inefficient (16G x 25pct = 4GiB)
+
+There are also consistency groups and group snapshots, which may be confusing and are not related to "groups" in snapshot groups. See the offical documentation (including [TR-4747](https://www.netapp.com/media/17167-tr4747.pdf)) or my blog for more on SANtricity snapshots.
 
 1. **Create a Snapshot Group** (required for the first snapshot of a volume):
    The `jq` utility can help you find the volumeRef if your system has many volumes.

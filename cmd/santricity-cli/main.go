@@ -381,6 +381,41 @@ func main() {
 	createCmd.AddCommand(createSnapshotImageCmd)
 	createCmd.AddCommand(createSnapshotVolumeCmd)
 
+	var rollbackCmd = &cobra.Command{
+		Use:   "rollback",
+		Short: "Rollback operations",
+	}
+
+	var rollbackVolumeCmd = &cobra.Command{
+		Use:   "volume",
+		Short: "Rollback a volume to a previous Snapshot Image (PiT)",
+		Run: func(cmd *cobra.Command, args []string) {
+			imageID, _ := cmd.Flags().GetString("image-id")
+			if imageID == "" {
+				log.Fatal("Error: --image-id is required")
+			}
+
+			// Interactive confirmation unless forced (omitted for now in this MVP)
+			fmt.Printf("WARNING: Rolling back volume from Snapshot Image %s. Current data on the base volume will be OVERWRITTEN.\n", imageID)
+
+			err := apiClient.RollbackSnapshotImage(ctx, imageID)
+			if err != nil {
+				log.Fatalf("Error starting rollback: %v", err)
+			}
+
+			if outputFormat == "json" {
+				fmt.Println(`{"status": "rollback_started", "message": "Rollback operation initiated successfully."}`)
+			} else {
+				fmt.Println("Rollback operation initiated successfully. Monitor volume status for completion.")
+			}
+		},
+	}
+	rollbackVolumeCmd.Flags().String("image-id", "", "Snapshot Image ID (Ref) to restore from")
+	rollbackVolumeCmd.MarkFlagRequired("image-id")
+
+	rollbackCmd.AddCommand(rollbackVolumeCmd)
+	rootCmd.AddCommand(rollbackCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}

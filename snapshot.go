@@ -102,3 +102,39 @@ func (c *Client) CreateSnapshotVolume(ctx context.Context, request SnapshotVolum
 
 	return &volume, nil
 }
+
+// RollbackSnapshotImage initiates a rollback of a volume to a specific Snapshot Image (PiT).
+// CAUTION: This overwrites the base volume with the snapshot data.
+func (c *Client) RollbackSnapshotImage(ctx context.Context, imageRef string) error {
+// Endpoint: /storage-systems/{system-id}/symbol/startPITRollback
+// This uses the legacy Symbol API proxy endpoint.
+
+if _, err := c.Connect(ctx); err != nil {
+return err
+}
+path := "/symbol/startPITRollback"
+
+req := SnapshotRollbackRequest{
+PitRef: []string{imageRef},
+}
+
+jsonBody, err := json.Marshal(req)
+if err != nil {
+return err
+}
+
+resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+if err != nil {
+return err
+}
+
+// The Symbol API often returns "ok" as a raw string or JSON "ok"
+// But standard REST semantic is 200/204.
+// We need to check if response code is success.
+if resp.StatusCode != 200 && resp.StatusCode != 204 {
+return fmt.Errorf("failed to start rollback: status %d, body: %s", resp.StatusCode, string(responseBody))
+}
+
+// We can trust the user to monitor progress via GetVolume -> underlying Action status
+return nil
+}

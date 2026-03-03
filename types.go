@@ -390,3 +390,7 @@ Label          string `json:"label"`
 HostTypeIndex  int    `json:"hostTypeIndex"`
 IsSAControlled bool   `json:"isSAControlled"`
 }
+
+type SnapshotRollbackRequest struct {
+PitRef []string `json:"pitRef"`
+}
