@@ -475,7 +475,7 @@ var createSnapshotGroupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		volID, _ := cmd.Flags().GetString("volume-id")
 		name, _ := cmd.Flags().GetString("name")
-		repoPct, _ := cmd.Flags().GetInt("repo-pct")
+		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
 
 		req := santricity.SnapshotGroupCreateRequest{
 			BaseMappableObjectId: volID,
@@ -584,7 +584,7 @@ var createSnapshotVolumeCmd = &cobra.Command{
 func init() {
 	createSnapshotGroupCmd.Flags().String("volume-id", "", "Base Volume ID (Ref)")
 	createSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
-	createSnapshotGroupCmd.Flags().Int("repo-pct", 20, "Repository Percentage")
+	createSnapshotGroupCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage")
 	createSnapshotGroupCmd.MarkFlagRequired("volume-id")
 	createSnapshotGroupCmd.MarkFlagRequired("name")
 

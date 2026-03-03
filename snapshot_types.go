@@ -4,13 +4,13 @@ package santricity
 
 // SnapshotGroupCreateRequest is the payload for creating a Snapshot Group
 type SnapshotGroupCreateRequest struct {
-	BaseMappableObjectId string `json:"baseMappableObjectId"` // The Ref of the volume/resource to snapshot
-	Name                 string `json:"name"`
-	RepositoryPercentage int    `json:"repositoryPercentage"`
-	WarningThreshold     int    `json:"warningThreshold"`
-	AutoDeleteLimit      int    `json:"autoDeleteLimit"`
-	FullPolicy           string `json:"fullPolicy"` // "purgepit" (auto-delete oldest) or "failbasewrites"
-	StoragePoolId        string `json:"storagePoolId,omitempty"`
+	BaseMappableObjectId string  `json:"baseMappableObjectId"` // The Ref of the volume/resource to snapshot
+	Name                 string  `json:"name"`
+	RepositoryPercentage float64 `json:"repositoryPercentage"`
+	WarningThreshold     int     `json:"warningThreshold"`
+	AutoDeleteLimit      int     `json:"autoDeleteLimit"`
+	FullPolicy           string  `json:"fullPolicy"`              // "purgepit" (auto-delete oldest) or "failbasewrites"
+	StoragePoolId        string  `json:"storagePoolId,omitempty"` // Optional: Pool to create repository on
 }
 
 // SnapshotImageCreateRequest is the payload for creating a Snapshot Image (Instant Snapshot)
