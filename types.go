@@ -358,11 +358,15 @@ type VolumeExpansionRequest struct {
 
 // SnapshotGroup represents a PiT Group (Snapshot Group)
 type SnapshotGroup struct {
-	PitGroupRef   string `json:"pitGroupRef"`
-	BaseVolume    string `json:"baseVolume"`
-	Label         string `json:"label"`
-	Status        string `json:"status"`
-	SnapshotCount int    `json:"snapshotCount"`
+	PitGroupRef       string `json:"pitGroupRef"`
+	BaseVolume        string `json:"baseVolume"`
+	Label             string `json:"label"`
+	Status            string `json:"status"`
+	SnapshotCount     int    `json:"snapshotCount"`
+	FullWarnThreshold int    `json:"fullWarnThreshold"`
+	AutoDeleteLimit   int    `json:"autoDeleteLimit"`
+	RepFullPolicy     string `json:"repFullPolicy"`
+	RollbackPriority  string `json:"rollbackPriority"`
 }
 
 // SnapshotImage represents a PiT (Point-in-Time Image/Snapshot)

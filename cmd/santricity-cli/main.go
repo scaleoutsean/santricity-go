@@ -562,14 +562,17 @@ var createSnapshotGroupCmd = &cobra.Command{
 		volID, _ := cmd.Flags().GetString("volume-id")
 		name, _ := cmd.Flags().GetString("name")
 		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
+		warn, _ := cmd.Flags().GetInt("warning-threshold")
+		limit, _ := cmd.Flags().GetInt("auto-delete-limit")
+		policy, _ := cmd.Flags().GetString("full-policy")
 
 		req := santricity.SnapshotGroupCreateRequest{
 			BaseMappableObjectId: volID,
 			Name:                 name,
 			RepositoryPercentage: repoPct,
-			WarningThreshold:     80,
-			AutoDeleteLimit:      30,
-			FullPolicy:           "purgepit",
+			WarningThreshold:     warn,
+			AutoDeleteLimit:      limit,
+			FullPolicy:           policy,
 		}
 		group, err := apiClient.CreateSnapshotGroup(ctx, req)
 		if err != nil {
@@ -1049,6 +1052,9 @@ func init() {
 	createSnapshotGroupCmd.Flags().String("volume-id", "", "Base Volume ID (Ref)")
 	createSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
 	createSnapshotGroupCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage")
+	createSnapshotGroupCmd.Flags().Int("warning-threshold", 80, "Repository Warning Threshold %")
+	createSnapshotGroupCmd.Flags().Int("auto-delete-limit", 30, "Auto-delete limit (0-32)")
+	createSnapshotGroupCmd.Flags().String("full-policy", "purgepit", "Repository Full Policy (purgepit, failbasewrites)")
 	createSnapshotGroupCmd.MarkFlagRequired("volume-id")
 	createSnapshotGroupCmd.MarkFlagRequired("name")
 

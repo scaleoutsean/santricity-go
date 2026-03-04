@@ -198,3 +198,90 @@ func (c *Client) DeleteSnapshotVolume(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// GetSnapshotGroup returns a snapshot group by ID.
+func (c *Client) GetSnapshotGroup(ctx context.Context, id string) (*SnapshotGroup, error) {
+	// Endpoint: /storage-systems/{system-id}/snapshot-groups/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/snapshot-groups/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil // Not found
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get snapshot group: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var group SnapshotGroup
+	err = json.Unmarshal(responseBody, &group)
+	if err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
+// GetSnapshotImage returns a snapshot image (PiT) by ID.
+func (c *Client) GetSnapshotImage(ctx context.Context, id string) (*SnapshotImage, error) {
+	// Endpoint: /storage-systems/{system-id}/snapshot-images/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/snapshot-images/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil // Not found
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get snapshot image: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var image SnapshotImage
+	err = json.Unmarshal(responseBody, &image)
+	if err != nil {
+		return nil, err
+	}
+	return &image, nil
+}
+
+// GetSnapshotVolume returns a snapshot volume (linked clone) by ID.
+func (c *Client) GetSnapshotVolume(ctx context.Context, id string) (*SnapshotVolume, error) {
+	// Endpoint: /storage-systems/{system-id}/snapshot-volumes/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/snapshot-volumes/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil // Not found
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get snapshot volume: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var volume SnapshotVolume
+	err = json.Unmarshal(responseBody, &volume)
+	if err != nil {
+		return nil, err
+	}
+	return &volume, nil
+}

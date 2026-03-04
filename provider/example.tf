@@ -8,11 +8,11 @@ terraform {
 }
 
 provider "santricity" {
-  endpoint = "10.0.0.1"      # Replace with your Controller IP
+  endpoint = var.endpoint
   # username = "admin"       # Optional if token is used
   # password = "password"    # Optional if token is used
-  token    = "eyJ..."        # Optional if username/password is used
-  insecure = true
+  token    = var.token
+  insecure = var.insecure
 }
 
 resource "santricity_volume" "pg_data" {
@@ -27,12 +27,6 @@ resource "santricity_volume" "pg_log" {
   pool_id    = var.pool_id
   size_gb    = 10
   raid_level = "raid1"
-}
-
-variable "pool_id" {
-  type        = string
-  description = "The DDP Pool ID (Ref) to provision volumes in."
-  default     = "04000000600A098000E3C1B000002CED62CF874D"
 }
 
 resource "santricity_host_group" "pg_cluster" {
@@ -64,8 +58,8 @@ resource "santricity_host" "pg_host_02" {
 resource "santricity_mapping" "pg_data_map" {
   volume_id = santricity_volume.pg_data.id
   # Because pg-01 is in a group, this will automatically map to the Group (Cluster).
-  host_id   = santricity_host.pg_host_01.id
-  lun       = 10 # Arbitrary LUN
+  host_group_id = santricity_host_group.pg_cluster.id
+  lun           = 10 # Arbitrary LUN
 }
 
 resource "santricity_mapping" "pg_log_map" {
@@ -73,5 +67,33 @@ resource "santricity_mapping" "pg_log_map" {
   # We can also map explicitly to the Group ID
   host_group_id = santricity_host_group.pg_cluster.id
   lun           = 11
+}
+
+# --- Snapshot Examples ---
+
+# 1. Create a Snapshot Group for the base volume (pg_data)
+resource "santricity_snapshot_group" "pg_data_snap_group" {
+  base_volume_id        = santricity_volume.pg_data.id
+  name                  = "pg-data-snaps"
+  repository_percentage = 20
+  warning_threshold     = 80
+  auto_delete_limit     = 30
+  full_policy           = "purgepit"
+  storage_pool_id       = var.pool_id
+}
+
+# 2. Create a Snapshot Image (Instant Snapshot) from the Snapshot Group
+resource "santricity_snapshot_image" "pg_data_snap_daily" {
+  group_id = santricity_snapshot_group.pg_data_snap_group.id
+}
+
+# 3. Create a Snapshot Volume (Linked Clone/PiT View) from the Snapshot Image
+resource "santricity_snapshot_volume" "pg_data_clone_dev" {
+  snapshot_image_id     = santricity_snapshot_image.pg_data_snap_daily.id
+  name                  = "pg-data-dev-clone"
+  view_mode             = "readWrite"
+  repository_percentage = 20
+  repository_pool_id    = var.pool_id
+  full_threshold        = 90
 }
 
