@@ -208,6 +208,7 @@ type VolumeResizeStatusResponse struct {
 
 type HostCreateRequest struct {
 	Name     string `json:"name"`
+	Label    string `json:"label,omitempty"`
 	HostType struct {
 		Index int    `json:"index,omitempty"`
 		Code  string `json:"code,omitempty"`

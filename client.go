@@ -1434,6 +1434,7 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	// Set up the host create request
 	var request HostCreateRequest
 	request.Name = name
+	request.Label = name
 	request.HostType.Index = d.GetBestIndexForHostType(ctx, hostType)
 	if hostGroup.ClusterRef != "" && hostGroup.ClusterRef != NullRef {
 		request.GroupID = hostGroup.ClusterRef
@@ -1466,7 +1467,7 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
 		return HostEx{}, Error{
 			Code:    response.StatusCode,
-			Message: fmt.Sprintf("could not create host %s", name),
+			Message: fmt.Sprintf("could not create host %s; Response: %s; Request: %s", name, string(responseBody), string(jsonRequest)),
 		}
 	}
 
