@@ -106,35 +106,95 @@ func (c *Client) CreateSnapshotVolume(ctx context.Context, request SnapshotVolum
 // RollbackSnapshotImage initiates a rollback of a volume to a specific Snapshot Image (PiT).
 // CAUTION: This overwrites the base volume with the snapshot data.
 func (c *Client) RollbackSnapshotImage(ctx context.Context, imageRef string) error {
-// Endpoint: /storage-systems/{system-id}/symbol/startPITRollback
-// This uses the legacy Symbol API proxy endpoint.
+	// Endpoint: /storage-systems/{system-id}/symbol/startPITRollback
+	// This uses the legacy Symbol API proxy endpoint.
 
-if _, err := c.Connect(ctx); err != nil {
-return err
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := "/symbol/startPITRollback"
+
+	req := SnapshotRollbackRequest{
+		PitRef: []string{imageRef},
+	}
+
+	jsonBody, err := json.Marshal(req)
+	if err != nil {
+		return err
+	}
+
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	if err != nil {
+		return err
+	}
+
+	// The Symbol API often returns "ok" as a raw string or JSON "ok"
+	// But standard REST semantic is 200/204.
+	// We need to check if response code is success.
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to start rollback: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	// We can trust the user to monitor progress via GetVolume -> underlying Action status
+	return nil
 }
-path := "/symbol/startPITRollback"
 
-req := SnapshotRollbackRequest{
-PitRef: []string{imageRef},
+// DeleteSnapshotGroup deletes a snapshot group.
+func (c *Client) DeleteSnapshotGroup(ctx context.Context, id string) error {
+	// Endpoint: /storage-systems/{system-id}/snapshot-groups/{id}
+
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/snapshot-groups/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete snapshot group: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+	return nil
 }
 
-jsonBody, err := json.Marshal(req)
-if err != nil {
-return err
+// DeleteSnapshotImage deletes a snapshot image (PiT).
+func (c *Client) DeleteSnapshotImage(ctx context.Context, id string) error {
+	// Endpoint: /storage-systems/{system-id}/snapshot-images/{id}
+
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/snapshot-images/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete snapshot image: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+	return nil
 }
 
-resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
-if err != nil {
-return err
-}
+// DeleteSnapshotVolume deletes a snapshot volume (linked clone).
+func (c *Client) DeleteSnapshotVolume(ctx context.Context, id string) error {
+	// Endpoint: /storage-systems/{system-id}/snapshot-volumes/{id}
 
-// The Symbol API often returns "ok" as a raw string or JSON "ok"
-// But standard REST semantic is 200/204.
-// We need to check if response code is success.
-if resp.StatusCode != 200 && resp.StatusCode != 204 {
-return fmt.Errorf("failed to start rollback: status %d, body: %s", resp.StatusCode, string(responseBody))
-}
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/snapshot-volumes/%s", id)
 
-// We can trust the user to monitor progress via GetVolume -> underlying Action status
-return nil
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete snapshot volume: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+	return nil
 }

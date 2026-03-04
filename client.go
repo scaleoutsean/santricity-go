@@ -1641,7 +1641,38 @@ func (d Client) EnsureHostGroup(ctx context.Context) (HostGroup, error) {
 	return hostGroup, nil
 }
 
+// GetHostGroups returns a list of all HostGroups.
+func (d Client) GetHostGroups(ctx context.Context) ([]HostGroup, error) {
+	if d.config.DebugTraceFlags["method"] {
+		fields := log.Fields{
+			"Method": "GetHostGroups",
+			"Type":   "Client",
+		}
+		Logc(ctx).WithFields(fields).Debug(">>>> GetHostGroups")
+		defer Logc(ctx).WithFields(fields).Debug("<<<< GetHostGroups")
+	}
+
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/host-groups")
+	if err != nil {
+		return nil, fmt.Errorf("API invocation failed. %v", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, Error{
+			Code:    response.StatusCode,
+			Message: "could not get host groups from array",
+		}
+	}
+
+	hostGroups := make([]HostGroup, 0)
+	if err := json.Unmarshal(responseBody, &hostGroups); err != nil {
+		return nil, fmt.Errorf("could not parse host group data: %s; %v", string(responseBody), err)
+	}
+	return hostGroups, nil
+}
+
 // GetHostGroup returns an E-series HostGroup structure with the specified name. If no matching group is found, an
+
 // empty structure is returned, so the caller should check for empty values in the result.
 func (d Client) GetHostGroup(ctx context.Context, name string) (HostGroup, error) {
 
@@ -2408,47 +2439,47 @@ func (d Client) CreateVolumeMapping(ctx context.Context, request VolumeMappingCr
 
 // GetHosts returns a list of all hosts
 func (d Client) GetHosts(ctx context.Context) ([]Host, error) {
-if _, err := d.Connect(ctx); err != nil {
-return nil, err
-}
+	if _, err := d.Connect(ctx); err != nil {
+		return nil, err
+	}
 
-resp, body, err := d.InvokeAPI(ctx, nil, "GET", "/hosts")
-if err != nil {
-return nil, err
-}
+	resp, body, err := d.InvokeAPI(ctx, nil, "GET", "/hosts")
+	if err != nil {
+		return nil, err
+	}
 
-if resp.StatusCode != 200 {
-return nil, fmt.Errorf("failed to get hosts: %d", resp.StatusCode)
-}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get hosts: %d", resp.StatusCode)
+	}
 
-var hosts []Host
-if err := json.Unmarshal(body, &hosts); err != nil {
-return nil, err
-}
+	var hosts []Host
+	if err := json.Unmarshal(body, &hosts); err != nil {
+		return nil, err
+	}
 
-return hosts, nil
+	return hosts, nil
 }
 
 // GetVolumeMappings returns a list of all volume mappings on the array
 func (d Client) GetVolumeMappings(ctx context.Context) ([]LUNMapping, error) {
-if _, err := d.Connect(ctx); err != nil {
-return nil, err
-}
+	if _, err := d.Connect(ctx); err != nil {
+		return nil, err
+	}
 
-response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/volume-mappings")
-if err != nil {
-return nil, fmt.Errorf("failed to get volume mappings: %v", err)
-}
+	response, responseBody, err := d.InvokeAPI(ctx, nil, "GET", "/volume-mappings")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get volume mappings: %v", err)
+	}
 
-if response.StatusCode != http.StatusOK {
-return nil, fmt.Errorf("failed to get volume mappings: status %d", response.StatusCode)
-}
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get volume mappings: status %d", response.StatusCode)
+	}
 
-var mappings []LUNMapping
-err = json.Unmarshal(responseBody, &mappings)
-if err != nil {
-return nil, fmt.Errorf("failed to unmarshal volume mappings: %v", err)
-}
+	var mappings []LUNMapping
+	err = json.Unmarshal(responseBody, &mappings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal volume mappings: %v", err)
+	}
 
-return mappings, nil
+	return mappings, nil
 }

@@ -355,10 +355,11 @@ type VolumeExpansionRequest struct {
 
 // SnapshotGroup represents a PiT Group (Snapshot Group)
 type SnapshotGroup struct {
-	PitGroupRef string `json:"pitGroupRef"`
-	BaseVolume  string `json:"baseVolume"`
-	Label       string `json:"label"`
-	Status      string `json:"status"`
+	PitGroupRef   string `json:"pitGroupRef"`
+	BaseVolume    string `json:"baseVolume"`
+	Label         string `json:"label"`
+	Status        string `json:"status"`
+	SnapshotCount int    `json:"snapshotCount"`
 }
 
 // SnapshotImage represents a PiT (Point-in-Time Image/Snapshot)
@@ -383,14 +384,14 @@ type SnapshotVolume struct {
 }
 
 type Host struct {
-ClusterRef     string `json:"clusterRef"`
-HostRef        string `json:"hostRef"`
-Name           string `json:"name"`
-Label          string `json:"label"`
-HostTypeIndex  int    `json:"hostTypeIndex"`
-IsSAControlled bool   `json:"isSAControlled"`
+	ClusterRef     string `json:"clusterRef"`
+	HostRef        string `json:"hostRef"`
+	Name           string `json:"name"`
+	Label          string `json:"label"`
+	HostTypeIndex  int    `json:"hostTypeIndex"`
+	IsSAControlled bool   `json:"isSAControlled"`
 }
 
 type SnapshotRollbackRequest struct {
-PitRef []string `json:"pitRef"`
+	PitRef []string `json:"pitRef"`
 }

@@ -196,6 +196,29 @@ func main() {
 	}
 	getCmd.AddCommand(getHostsCmd)
 
+	var getHostGroupsCmd = &cobra.Command{
+		Use:   "host-groups",
+		Short: "List host groups",
+		Run: func(cmd *cobra.Command, args []string) {
+			groups, err := apiClient.GetHostGroups(ctx)
+			if err != nil {
+				log.Fatalf("Error getting host groups: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(groups, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				for _, g := range groups {
+					log.Printf("Host Group: %s (Ref: %s)", g.Label, g.ClusterRef)
+				}
+			}
+		},
+	}
+	getCmd.AddCommand(getHostGroupsCmd)
+
 	var getMappingsCmd = &cobra.Command{
 		Use:   "mappings",
 		Short: "List volume mappings",
@@ -292,7 +315,33 @@ func main() {
 	createHostCmd.Flags().StringVar(&authSecret, "auth-secret", "", "CHAP Secret (iSCSI only)")
 	createHostCmd.Flags().StringVar(&groupID, "group-id", "", "Host Group ID (optional)")
 
+	var hostGroupName string
+	var createHostGroupCmd = &cobra.Command{
+		Use:   "host-group",
+		Short: "Create a host group (Cluster)",
+		Run: func(cmd *cobra.Command, args []string) {
+			if hostGroupName == "" {
+				log.Fatal("Error: --name is required")
+			}
+			hg, err := apiClient.CreateHostGroup(ctx, hostGroupName)
+			if err != nil {
+				log.Fatalf("Error creating host group: %v", err)
+			}
+			if outputFormat == "json" {
+				b, err := json.MarshalIndent(hg, "", "  ")
+				if err != nil {
+					log.Fatalf("Error marshaling to JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				log.Printf("Created Host Group: %s (Ref: %s)", hg.Label, hg.ClusterRef)
+			}
+		},
+	}
+	createHostGroupCmd.Flags().StringVar(&hostGroupName, "name", "", "Host Group Name")
+
 	createCmd.AddCommand(createHostCmd)
+	createCmd.AddCommand(createHostGroupCmd)
 
 	var volName, volPoolID, volSizeStr, volMediaType, volFSType, volRaidLevel string
 	var volBlockSize int
@@ -415,6 +464,8 @@ func main() {
 
 	rollbackCmd.AddCommand(rollbackVolumeCmd)
 	rootCmd.AddCommand(rollbackCmd)
+
+	rootCmd.AddCommand(deleteCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
@@ -616,6 +667,384 @@ var createSnapshotVolumeCmd = &cobra.Command{
 	},
 }
 
+var deleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete resources",
+}
+
+var deleteVolumeCmd = &cobra.Command{
+	Use:   "volume",
+	Short: "Delete a standard volume",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		if id == "" {
+			// Resolve by name
+			vols, err := apiClient.GetVolumes(ctx)
+			if err != nil {
+				log.Fatalf("Error getting volumes: %v", err)
+			}
+			for _, v := range vols {
+				if v.Label == name {
+					id = v.VolumeRef
+					break
+				}
+			}
+			if id == "" {
+				log.Fatalf("Volume with name '%s' not found", name)
+			}
+		}
+
+		err := apiClient.DeleteVolume(ctx, santricity.VolumeEx{VolumeRef: id})
+		if err != nil {
+			log.Fatalf("Error deleting volume: %v", err)
+		}
+		fmt.Printf("Deleted Volume %s\n", id)
+	},
+}
+
+var deleteHostCmd = &cobra.Command{
+	Use:   "host",
+	Short: "Delete a host",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		if id == "" {
+			// Resolve by name
+			hosts, err := apiClient.GetHosts(ctx)
+			if err != nil {
+				log.Fatalf("Error getting hosts: %v", err)
+			}
+			for _, h := range hosts {
+				if h.Label == name {
+					id = h.HostRef
+					break
+				}
+			}
+			if id == "" {
+				log.Fatalf("Host with name '%s' not found", name)
+			}
+		}
+
+		err := apiClient.DeleteHost(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting host: %v", err)
+		}
+		fmt.Printf("Deleted Host %s\n", id)
+	},
+}
+
+var deleteHostGroupCmd = &cobra.Command{
+	Use:   "host-group",
+	Short: "Delete a host group (Cluster)",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+		force, _ := cmd.Flags().GetBool("force")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		// Resolve ID
+		if id == "" {
+			groups, err := apiClient.GetHostGroups(ctx)
+			if err != nil {
+				log.Fatalf("Error getting host groups: %v", err)
+			}
+			for _, g := range groups {
+				if g.Label == name {
+					id = g.ClusterRef
+					break
+				}
+			}
+			if id == "" {
+				log.Fatalf("Host Group with name '%s' not found", name)
+			}
+		}
+
+		// Check for hosts if not force
+		if !force {
+			hosts, err := apiClient.GetHosts(ctx)
+			if err != nil {
+				log.Fatalf("Error getting hosts: %v", err)
+			}
+			count := 0
+			for _, h := range hosts {
+				if h.ClusterRef == id {
+					count++
+				}
+			}
+			if count > 0 {
+				log.Fatalf("Error: Host Group %s is not empty (%d hosts). Use --force to delete anyway.", id, count)
+			}
+		}
+
+		err := apiClient.DeleteHostGroup(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting host group: %v", err)
+		}
+		fmt.Printf("Deleted Host Group %s\n", id)
+	},
+}
+
+var deleteSnapshotGroupCmd = &cobra.Command{
+	Use:   "snapshot-group",
+	Short: "Delete a snapshot group",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+		force, _ := cmd.Flags().GetBool("force")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		if id == "" {
+			groups, err := apiClient.GetSnapshotGroups(ctx)
+			if err != nil {
+				log.Fatalf("Error getting snapshot groups: %v", err)
+			}
+			for _, g := range groups {
+				if g.Label == name {
+					id = g.PitGroupRef
+					break
+				}
+			}
+			if id == "" {
+				log.Fatalf("Snapshot Group with name '%s' not found", name)
+			}
+		}
+
+		// Check for dependencies (Linked Clones / Snapshot Volumes)
+		// 1. Get all images in this group
+		images, err := apiClient.GetSnapshotImages(ctx)
+		if err != nil {
+			log.Fatalf("Error listing snapshot images: %v", err)
+		}
+		var groupImages []string
+		for _, img := range images {
+			if img.PitGroupRef == id {
+				groupImages = append(groupImages, img.PitRef)
+			}
+		}
+
+		// 2. Get all snapshot volumes that map to these images
+		snapVols, err := apiClient.GetSnapshotVolumes(ctx)
+		if err != nil {
+			log.Printf("Warning: Could not list snapshot volumes to check dependencies: %v", err)
+		} else {
+			var dependentVols []santricity.SnapshotVolume
+			for _, vol := range snapVols {
+				for _, pitRef := range groupImages {
+					if vol.BasePIT == pitRef {
+						dependentVols = append(dependentVols, vol)
+						break
+					}
+				}
+			}
+
+			if len(dependentVols) > 0 {
+				if !force {
+					log.Printf("Error: Snapshot Group has %d dependent Snapshot Volumes (Linked Clones):", len(dependentVols))
+					for _, v := range dependentVols {
+						log.Printf(" - %s (ID: %s)", v.Label, v.SnapshotRef)
+					}
+					log.Fatal("Use --force to delete them automatically.")
+				} else {
+					fmt.Printf("Force deleting %d dependent Snapshot Volumes...\n", len(dependentVols))
+					for _, vol := range dependentVols {
+						// Resolve Volume to Unmap
+						// Attempt unmap logic similar to DeleteVolume
+						// We need VolumeEx for UnmapVolume
+						// But GetVolume might not find SnapshotVolume depending on API version/config
+						// Let's rely on standard UnmapVolume which takes VolumeEx
+						// We can try to fetch it as a standard volume
+
+						// Try to look up as normal volume to get mapping details
+						// Note: GetVolumeByRef works on Ref, so we use SnapshotRef
+						// If fails, maybe it's not mapped or not visible
+
+						// Attempt to unmap first
+						// We construct a temporary VolumeEx if we can't fetch it, but Unmap needs Mappings list.
+						// So we MUST fetch it.
+
+						// GetVolumeByRef is not exported?
+						// Wait, it WAS exported in my grep results: `func (d Client) GetVolumeByRef`
+						// Let's assume it works.
+
+						// Or just use DeleteSnapshotVolume and hope it handles unmap?
+						// Usually it doesn't.
+
+						// Let's rely on manual cleanup via API calls if needed.
+						// InvokeAPI DELETE /snapshot-volumes/{id}
+
+						// Actually, let's try to unmap properly in a best-effort way
+						// Iterate volumes to find full object (with mappings)
+						vols, err := apiClient.GetVolumes(ctx)
+						var targetVol *santricity.VolumeEx
+						if err == nil {
+							for _, v := range vols {
+								if v.VolumeRef == vol.SnapshotRef {
+									targetVol = &v
+									break
+								}
+							}
+						}
+
+						if targetVol != nil && len(targetVol.Mappings) > 0 {
+							fmt.Printf("Unmapping volume %s...\n", targetVol.Label)
+							// We need UnmapVolume which takes VolumeEx by value
+							// Wait, loop variable 'targetVol' is pointer to loop slice element?
+							// No, 'v' is copy. 'targetVol' is pointer to copy. Correct.
+							err := apiClient.UnmapVolume(ctx, *targetVol)
+							if err != nil {
+								log.Printf("Warning: Failed to unmap volume %s: %v", targetVol.Label, err)
+							}
+						}
+
+						err = apiClient.DeleteSnapshotVolume(ctx, vol.SnapshotRef)
+						if err != nil {
+							log.Fatalf("Error deleting snapshot volume %s: %v", vol.Label, err)
+						}
+						fmt.Printf("Deleted Snapshot Volume %s\n", vol.Label)
+					}
+				}
+			}
+		}
+
+		err = apiClient.DeleteSnapshotGroup(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting snapshot group: %v", err)
+		}
+		fmt.Printf("Deleted Snapshot Group %s\n", id)
+	},
+}
+
+var deleteSnapshotImageCmd = &cobra.Command{
+	Use:   "snapshot-image",
+	Short: "Delete a snapshot image (PiT)",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		force, _ := cmd.Flags().GetBool("force")
+
+		if id == "" {
+			log.Fatal("Error: --id is required")
+		}
+
+		// Check for dependent Snapshot Volumes
+		snapVols, err := apiClient.GetSnapshotVolumes(ctx)
+		if err != nil {
+			log.Printf("Warning: Could not list snapshot volumes to check dependencies: %v", err)
+		} else {
+			var dependentVols []santricity.SnapshotVolume
+			for _, vol := range snapVols {
+				if vol.BasePIT == id {
+					dependentVols = append(dependentVols, vol)
+				}
+			}
+
+			if len(dependentVols) > 0 {
+				if !force {
+					log.Printf("Error: Snapshot Image has %d dependent Snapshot Volumes (Linked Clones):", len(dependentVols))
+					for _, v := range dependentVols {
+						log.Printf(" - %s (ID: %s)", v.Label, v.SnapshotRef)
+					}
+					log.Fatal("Use --force to delete them automatically.")
+				} else {
+					fmt.Printf("Force deleting %d dependent Snapshot Volumes...\n", len(dependentVols))
+					for _, vol := range dependentVols {
+						// Unmap and Delete
+						vols, err := apiClient.GetVolumes(ctx)
+						var targetVol *santricity.VolumeEx
+						if err == nil {
+							for _, v := range vols {
+								if v.VolumeRef == vol.SnapshotRef {
+									targetVol = &v
+									break
+								}
+							}
+						}
+
+						if targetVol != nil && len(targetVol.Mappings) > 0 {
+							fmt.Printf("Unmapping volume %s...\n", targetVol.Label)
+							err := apiClient.UnmapVolume(ctx, *targetVol)
+							if err != nil {
+								log.Printf("Warning: Failed to unmap volume %s: %v", targetVol.Label, err)
+							}
+						}
+
+						err = apiClient.DeleteSnapshotVolume(ctx, vol.SnapshotRef)
+						if err != nil {
+							log.Fatalf("Error deleting snapshot volume %s: %v", vol.Label, err)
+						}
+						fmt.Printf("Deleted Snapshot Volume %s\n", vol.Label)
+					}
+				}
+			}
+		}
+
+		err = apiClient.DeleteSnapshotImage(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting snapshot image: %v", err)
+		}
+		fmt.Printf("Deleted Snapshot Image %s\n", id)
+	},
+}
+
+var deleteSnapshotVolumeCmd = &cobra.Command{
+	Use:   "snapshot-volume",
+	Short: "Delete a snapshot volume (Linked Clone)",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		if id == "" {
+			// Find by name? Assuming snapshot volumes are volumes?
+			// The API for snapshot volumes usually returns them as normal volumes too via GetVolumes but with specific properties?
+			// Or should we use GetSnapshotVolume specific endpoint if strictly separated?
+			// The CreateSnapshotVolume returns SnapshotVolume struct which has SnapshotRef (ID).
+			// Let's assume standard volume lookup by name works OR we need specific lookup.
+			// Let's rely on standard GetVolumes for now as usually snapshot volumes appear there.
+			// However, in SANtricity, snapshot volumes are distinct from standard volumes in some contexts.
+			// To be safe, let's just query GetVolumes and filter by name.
+			vols, err := apiClient.GetVolumes(ctx)
+			if err != nil {
+				log.Fatalf("Error getting volumes: %v", err)
+			}
+			for _, v := range vols {
+				if v.Label == name {
+					id = v.VolumeRef
+					break
+				}
+			}
+			if id == "" {
+				log.Fatalf("Snapshot Volume with name '%s' not found", name)
+			}
+		}
+
+		err := apiClient.DeleteSnapshotVolume(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting snapshot volume: %v", err)
+		}
+		fmt.Printf("Deleted Snapshot Volume %s\n", id)
+	},
+}
+
 func init() {
 	createSnapshotGroupCmd.Flags().String("volume-id", "", "Base Volume ID (Ref)")
 	createSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
@@ -635,4 +1064,31 @@ func init() {
 	createSnapshotVolumeCmd.Flags().String("host-id", "", "Optional: Host ID (Ref) to map volume to")
 	createSnapshotVolumeCmd.MarkFlagRequired("image-id")
 	createSnapshotVolumeCmd.MarkFlagRequired("name")
+
+	deleteCmd.AddCommand(deleteVolumeCmd)
+	deleteCmd.AddCommand(deleteHostCmd)
+	deleteCmd.AddCommand(deleteHostGroupCmd)
+	deleteCmd.AddCommand(deleteSnapshotGroupCmd)
+	deleteCmd.AddCommand(deleteSnapshotImageCmd)
+	deleteCmd.AddCommand(deleteSnapshotVolumeCmd)
+
+	deleteVolumeCmd.Flags().String("id", "", "Volume ID (Ref)")
+	deleteVolumeCmd.Flags().String("name", "", "Volume Name")
+
+	deleteHostCmd.Flags().String("id", "", "Host ID (Ref)")
+	deleteHostCmd.Flags().String("name", "", "Host Name")
+
+	deleteHostGroupCmd.Flags().String("id", "", "Host Group ID (Ref)")
+	deleteHostGroupCmd.Flags().String("name", "", "Host Group Name")
+	deleteHostGroupCmd.Flags().Bool("force", false, "Force delete non-empty host group")
+
+	deleteSnapshotGroupCmd.Flags().String("id", "", "Snapshot Group ID (Ref)")
+	deleteSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
+	deleteSnapshotGroupCmd.Flags().Bool("force", false, "Force delete dependent Snapshot Volumes (Linked Clones)")
+
+	deleteSnapshotVolumeCmd.Flags().String("id", "", "Snapshot Volume ID (Ref)")
+	deleteSnapshotVolumeCmd.Flags().String("name", "", "Snapshot Volume Name")
+
+	deleteSnapshotImageCmd.Flags().String("id", "", "Snapshot Image ID (Ref)")
+	deleteSnapshotImageCmd.Flags().Bool("force", false, "Force delete dependent Snapshot Volumes")
 }
