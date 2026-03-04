@@ -1435,7 +1435,9 @@ func (d Client) CreateHost(ctx context.Context, name, portID, portType, hostType
 	var request HostCreateRequest
 	request.Name = name
 	request.HostType.Index = d.GetBestIndexForHostType(ctx, hostType)
-	request.GroupID = hostGroup.ClusterRef
+	if hostGroup.ClusterRef != "" && hostGroup.ClusterRef != NullRef {
+		request.GroupID = hostGroup.ClusterRef
+	}
 	request.Ports = make([]HostPort, 1)
 	request.Ports[0].Label = d.createNameForPort(name)
 	request.Ports[0].Port = portID

@@ -165,7 +165,7 @@ There are also consistency groups and group snapshots, which may be confusing an
    ```
 4. **Rollback a Volume from Snapshot Image**
    ```bash
-   # unmap base volume or stop client access during rollback
+   # unmap base volume or stop client access (unmount) during rollback
    santricity-cli rollback volume --image-id "4200000060080E500043C0B80000062E5D6C9641"
    ```
 
