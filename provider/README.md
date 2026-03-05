@@ -30,6 +30,37 @@ The provider supports in-place updates for the following Host attributes:
 
 **Note**: Changing the `ports` (IQN, NQN, or WWN) is considered a structural identity change and will force the destruction and recreation of the host resource to ensure integrity.
 
+## Snapshots (Groups, Images, Volumes)
+
+In terms of dependencies, linked clones ("snapshot volumes") and snapshots ("snapshot images") sit atop of snapshot groups.
+
+The provider currently treats Snapshot Groups as immutable resources regarding their capacity settings.
+
+- **Capacity**: Use the `repository_percentage` argument to set the initial capacity of the snapshot repository relative to the base volume.
+- **Resizing**: There is currently no support for resizing an existing Snapshot Group's repository capacity in-place. Because the resource is immutable, changing `repository_percentage` will force the destruction and recreation of the Snapshot Group—which includes **deleting all contained snapshots and linked clones**. If you need to regularly grow snapshot groups, create an enhancement request in Issues.
+- **Best Practice**: Provision snapshot group capacity generously (e.g., 20-40% or more depending on change rate) to avoid running out of space, as expanding it later requires wiping your snapshot history.
+
+Snapshot resource:
+
+```hcl
+resource "santricity_snapshot_image" "my_snapshot" {
+  group_id = santricity_snapshot_group.my_group.id
+}
+```
+
+Linked clone resource:
+
+```hcl
+resource "santricity_snapshot_volume" "my_clone" {
+  name              = "my-clone-vol"
+  snapshot_image_id = santricity_snapshot_image.my_snapshot.id
+  view_mode         = "readWrite"
+  repository_percentage = 20
+}
+```
+
+See `example.tf` for an example on how to use these. Note that in practice we'd have to use consistency group snapshots for multi-volume applications, or else ensure that application and host I/O on volumes being snapshot are quiesced or stopped.
+
 ## Moving Volumes (Remapping)
 
 If you need to move a volume from one host to another (e.g., from `host-a` to `host-b`):
@@ -43,27 +74,28 @@ If you need to move a volume from one host to another (e.g., from `host-a` to `h
 
 - iSCSI and NVMe/RoCE should work, and FC needs testing with real hardware
 - Hosts must have valid IQN or NQN (CHAP-only iSCSI is not supported)
+- Snapshot implementation support single volume snapshots and no snapshot reserve growth. Consistency Groups are not yet implemented
 
-## Live Test
-
-This does stuff to your box (creates and removes small volumes and hosts/host groups) to confirm it works. Volumes, hosts, IQNs/NQNs, and host groups have randomized names to avoid naming conflicts.
-
-Find a DDP that has 10 GiB of spare capacity and run these tests to try it. 
+## Install
 
 ```sh
-cd tests/live_test
-go build -o live_tester main.go
+# 1. Create the plugin directory structure
+mkdir -p ~/.terraform.d/plugins/local/scaleoutsean/santricity/1.0.0/linux_amd64
 
-export SANTRICITY_ENDPOINT="10.x.x.x"
-export SANTRICITY_USERNAME="admin"
-export SANTRICITY_PASSWORD=""
-# how to find DDP pool ID: Swagger > Volumes > GET storage-pools
-export SANTRICITY_POOL_ID="<your-pool-id>"
+# 2. Build the provider binary verify the path to your main.go
+# Assuming you are in the root of the repo:
+SANTRICITY_PLUGIN="$(whoami)/.terraform.d/plugins/local/scaleoutsean/santricity/1.0.0/linux_amd64/terraform-provider-santricity_v1.0.0"
+go build -o ${SANTRICITY_PLUGIN} ./cmd/terraform-provider-santricity/
 
-./live_tester
+# 3. Initialize/Re-initialize Terraform in your example directory
+cd provider
+rm -rf .terraform .terraform.lock.hcl  # Optional: Clean up old init state
+terraform init
 ```
+
+To run the example, change variables in `vars.tf` or pass them to `terraform apply` using other methods supported by Terraform.
 
 ## Development
 
 - The provider logic relies on the `santricity-go` client library.
-- Use `make build` or `go build` in the root to build the project.
+- Use `make build` or `go build` **in the root** to build the entire project.
