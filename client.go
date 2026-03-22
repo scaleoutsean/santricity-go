@@ -661,13 +661,25 @@ func (d Client) GetVolumes(ctx context.Context) ([]VolumeEx, error) {
 		return nil, fmt.Errorf("could not parse volume data: %s. %v", string(responseBody), err)
 	}
 
+	// Filter logic
 	var volumes []VolumeEx
-	if d.config.IncludeRepositoryVolumes {
-		volumes = rawVolumes
-	} else {
-		volumes = make([]VolumeEx, 0, len(rawVolumes))
-		for _, v := range rawVolumes {
-			if !strings.HasPrefix(v.Label, "repos_") {
+	volumes = make([]VolumeEx, 0, len(rawVolumes))
+
+	for _, v := range rawVolumes {
+		isRepo := false
+		// Logic: Identify if it is a "system/repo" volume we usually hide
+		if v.VolumeUse == "freeRepositoryVolume" || v.VolumeUse == "repositoryVolume" {
+			isRepo = true
+		} else if strings.HasPrefix(v.Label, "repos_") {
+			isRepo = true
+		}
+
+		if d.config.IncludeRepositoryVolumes {
+			// If config says include them, we include everything
+			volumes = append(volumes, v)
+		} else {
+			// If config says exclude them, we only include if NOT a repo
+			if !isRepo {
 				volumes = append(volumes, v)
 			}
 		}

@@ -27,3 +27,33 @@ type SnapshotVolumeCreateRequest struct {
 	RepositoryPoolId     string  `json:"repositoryPoolId,omitempty"`
 	FullThreshold        int     `json:"fullThreshold,omitempty"`
 }
+
+// SnapshotConsistencyGroupCreateRequest represents the request to create a new Consistency Group (Snapshot Group container)
+type SnapshotConsistencyGroupCreateRequest struct {
+	Name                     string `json:"name"`
+	FullWarnThresholdPercent int    `json:"fullWarnThresholdPercent,omitempty"`
+	AutoDeleteThreshold      int    `json:"autoDeleteThreshold,omitempty"`
+	RepositoryFullPolicy     string `json:"repositoryFullPolicy,omitempty"` // "purgepit" etc
+	RollbackPriority         string `json:"rollbackPriority,omitempty"`
+}
+
+// SnapshotConsistencyGroupMemberAddRequest represents the request to add a volume to a CG
+type SnapshotConsistencyGroupMemberAddRequest struct {
+	VolumeId          string  `json:"volumeId"`
+	RepositoryPoolId  string  `json:"repositoryPoolId,omitempty"`
+	RepositoryPercent float64 `json:"repositoryPercent,omitempty"`
+	ScanMedia         bool    `json:"scanMedia,omitempty"`
+	ValidateParity    bool    `json:"validateParity,omitempty"`
+}
+
+// SnapshotConsistencyGroupVolumeCreateRequest represents the request to create a View/Clone of a CG
+type SnapshotConsistencyGroupVolumeCreateRequest struct {
+	Name              string  `json:"name"`
+	RepositoryPoolId  string  `json:"repositoryPoolId,omitempty"`
+	PitId             string  `json:"pitId,omitempty"`
+	PitSequenceNumber int64   `json:"pitSequenceNumber,omitempty"` // Note: int64 to match format "int64" in swagger
+	AccessMode        string  `json:"accessMode,omitempty"`        // "readOnly" or "readWrite"
+	RepositoryPercent float64 `json:"repositoryPercent,omitempty"`
+	ScanMedia         bool    `json:"scanMedia,omitempty"`
+	ValidateParity    bool    `json:"validateParity,omitempty"`
+}

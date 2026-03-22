@@ -285,3 +285,161 @@ func (c *Client) GetSnapshotVolume(ctx context.Context, id string) (*SnapshotVol
 	}
 	return &volume, nil
 }
+
+// CreateSnapshotConsistencyGroup creates a new Consistency Group (Snapshot Group Container).
+func (c *Client) CreateSnapshotConsistencyGroup(ctx context.Context, request SnapshotConsistencyGroupCreateRequest) (*SnapshotConsistencyGroup, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := "/consistency-groups"
+
+	jsonBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create consistency group: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var group SnapshotConsistencyGroup
+	err = json.Unmarshal(responseBody, &group)
+	if err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
+// AddSnapshotConsistencyGroupMember adds a volume member to a Consistency Group.
+func (c *Client) AddSnapshotConsistencyGroupMember(ctx context.Context, cgID string, request SnapshotConsistencyGroupMemberAddRequest) (*SnapshotConsistencyGroupMember, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/member-volumes
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/member-volumes", cgID)
+
+	jsonBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to add consistency group member: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var member SnapshotConsistencyGroupMember
+	err = json.Unmarshal(responseBody, &member)
+	if err != nil {
+		return nil, err
+	}
+	return &member, nil
+}
+
+// CreateSnapshotConsistencyGroupImage creates a new snapshot (PiT) for a Consistency Group.
+func (c *Client) CreateSnapshotConsistencyGroupImage(ctx context.Context, cgID string) ([]SnapshotImage, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/snapshots
+
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/snapshots", cgID)
+
+	// No body needed for newConsistencyGroupSnapshot based on API analysis
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "POST", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create consistency group snapshot: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var images []SnapshotImage
+	err = json.Unmarshal(responseBody, &images)
+	if err != nil {
+		return nil, err
+	}
+	return images, nil
+}
+
+// CreateSnapshotConsistencyGroupVolume creates a new Consistency Group View (Linked Clone).
+func (c *Client) CreateSnapshotConsistencyGroupVolume(ctx context.Context, cgID string, request SnapshotConsistencyGroupVolumeCreateRequest) (*SnapshotConsistencyGroupVolume, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views
+
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/views", cgID)
+
+	jsonBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, responseBody, err := c.InvokeAPI(ctx, jsonBody, "POST", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return nil, fmt.Errorf("failed to create consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var view SnapshotConsistencyGroupVolume
+	err = json.Unmarshal(responseBody, &view)
+	if err != nil {
+		return nil, err
+	}
+	return &view, nil
+}
+
+// DeleteSnapshotConsistencyGroup deletes a Consistency Group.
+func (c *Client) DeleteSnapshotConsistencyGroup(ctx context.Context, cgID string) error {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s", cgID)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete consistency group: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	return nil
+}
+
+// RemoveSnapshotConsistencyGroupMember removes a volume from a Consistency Group.
+func (c *Client) RemoveSnapshotConsistencyGroupMember(ctx context.Context, cgID string, memberVolumeID string) error {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{id}/members/{memberId}
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/members/%s", cgID, memberVolumeID)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to remove consistency group member: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	return nil
+}

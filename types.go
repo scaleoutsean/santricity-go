@@ -193,6 +193,7 @@ type VolumeEx struct {
 	Mappings       []LUNMapping `json:"listOfMappings"`
 	IsMapped       bool         `json:"mapped"`
 	VolumeTags     []VolumeTag  `json:"metadata"`
+	VolumeUse      string       `json:"volumeUse,omitempty"` // "standardVolume", "freeRepositoryVolume", etc.
 }
 
 type VolumeResizeRequest struct {
@@ -388,6 +389,43 @@ type SnapshotVolume struct {
 	BasePIT     string `json:"basePIT"` // The Snapshot Image (PiT) this volume accesses
 	Label       string `json:"label"`
 	Status      string `json:"status"`
+}
+
+// SnapshotConsistencyGroup represents a Consistency Group for snapshots (Snapshot Group container)
+// API definition name: "PITConsistencyGroup"
+type SnapshotConsistencyGroup struct {
+	ConsistencyGroupRef string `json:"cgRef"`
+	Label               string `json:"label"`
+	RepFullPolicy       string `json:"repFullPolicy"`
+	FullWarnThreshold   int    `json:"fullWarnThreshold"`
+	AutoDeleteLimit     int    `json:"autoDeleteLimit"`
+	RollbackPriority    string `json:"rollbackPriority,omitempty"`
+}
+
+// SnapshotConsistencyGroupMember represents a volume member of a Consistency Group
+// API definition name: "PITCGMember"
+type SnapshotConsistencyGroupMember struct {
+	ConsistencyGroupId      string `json:"consistencyGroupId"`
+	VolumeId                string `json:"volumeId"`
+	VolumeWwn               string `json:"volumeWwn"`
+	BaseVolumeName          string `json:"baseVolumeName"`
+	RepositoryVolume        string `json:"repositoryVolume"`
+	TotalRepositoryCapacity string `json:"totalRepositoryCapacity"`
+	UsedRepositoryCapacity  string `json:"usedRepositoryCapacity"`
+	AutoDeleteLimit         int    `json:"autoDeleteLimit"`
+	FullWarnThreshold       int    `json:"fullWarnThreshold"`
+}
+
+// SnapshotConsistencyGroupVolume represents a Linked Clone (View) of a Consistency Group Snapshot
+// API definition name: "PITConsistencyGroupView"
+type SnapshotConsistencyGroupVolume struct {
+	ConsistencyGroupViewRef string `json:"cgViewRef"`
+	GroupRef                string `json:"groupRef"`
+	Label                   string `json:"label"`
+	ViewTime                string `json:"viewTime"`
+	ViewSequenceNumber      string `json:"viewSequenceNumber"`
+	Name                    string `json:"name"`
+	Id                      string `json:"id"`
 }
 
 type Host struct {

@@ -134,27 +134,48 @@ func main() {
 	}
 
 	var showRepoVols bool
+	var showOrphansOnly bool
 	var getVolumesCmd = &cobra.Command{
 		Use:   "volumes",
 		Short: "List volumes",
 		Run: func(cmd *cobra.Command, args []string) {
 			volNameFilter, _ := cmd.Flags().GetString("volume-name")
 
-			apiClient.SetIncludeRepositoryVolumes(showRepoVols)
+			// If the user wants orphans, we must tell the client to fetch ALL system volumes first,
+			// because orphans are technically system/repo volumes.
+			if showOrphansOnly {
+				apiClient.SetIncludeRepositoryVolumes(true)
+			} else {
+				apiClient.SetIncludeRepositoryVolumes(showRepoVols)
+			}
+
 			vols, err := apiClient.GetVolumes(ctx)
 			if err != nil {
 				log.Fatalf("Error getting volumes: %v", err)
 			}
 
-			// Apply Filter
+			// Apply Filters
 			var filteredVols []santricity.VolumeEx
-			if volNameFilter != "" {
+
+			// 1. Orphan Filter takes precedence if set
+			if showOrphansOnly {
 				for _, v := range vols {
-					if v.Label == volNameFilter {
+					if v.VolumeUse == "freeRepositoryVolume" {
 						filteredVols = append(filteredVols, v)
 					}
 				}
 				vols = filteredVols
+			}
+
+			// 2. Name Filter
+			if volNameFilter != "" {
+				var nameFiltered []santricity.VolumeEx
+				for _, v := range vols {
+					if v.Label == volNameFilter {
+						nameFiltered = append(nameFiltered, v)
+					}
+				}
+				vols = nameFiltered
 			}
 
 			if outputFormat == "json" {
@@ -165,12 +186,17 @@ func main() {
 				fmt.Println(string(b))
 			} else {
 				for _, v := range vols {
-					log.Printf("Volume: %s (Size: %s Ref: %s)", v.Label, v.VolumeSize, v.VolumeRef)
+					usageInfo := ""
+					if v.VolumeUse != "" {
+						usageInfo = fmt.Sprintf(" [%s]", v.VolumeUse)
+					}
+					log.Printf("Volume: %s (Size: %s Ref: %s)%s", v.Label, v.VolumeSize, v.VolumeRef, usageInfo)
 				}
 			}
 		},
 	}
 	getVolumesCmd.Flags().BoolVar(&showRepoVols, "show-repo-vols", false, "Show internal repository volumes")
+	getVolumesCmd.Flags().BoolVar(&showOrphansOnly, "orphans-only", false, "Show only orphaned repository volumes")
 	getVolumesCmd.Flags().String("volume-name", "", "Filter by volume name")
 
 	var getHostsCmd = &cobra.Command{
@@ -429,6 +455,11 @@ func main() {
 	createCmd.AddCommand(createSnapshotGroupCmd)
 	createCmd.AddCommand(createSnapshotImageCmd)
 	createCmd.AddCommand(createSnapshotVolumeCmd)
+
+	createCmd.AddCommand(createCGCmd)
+	createCmd.AddCommand(createCGMemberCmd)
+	createCmd.AddCommand(createCGSnapshotCmd)
+	createCmd.AddCommand(createCGViewCmd)
 
 	var rollbackCmd = &cobra.Command{
 		Use:   "rollback",
@@ -1048,6 +1079,153 @@ var deleteSnapshotVolumeCmd = &cobra.Command{
 	},
 }
 
+var deleteCGCmd = &cobra.Command{
+	Use:   "consistency-group",
+	Short: "Delete a Consistency Group",
+	Run: func(cmd *cobra.Command, args []string) {
+		id, _ := cmd.Flags().GetString("id")
+		name, _ := cmd.Flags().GetString("name")
+
+		if id == "" && name == "" {
+			log.Fatal("Error: --id or --name is required")
+		}
+
+		// Currently only support delete by ID as we don't have GetConsistencyGroup by name yet exposed in CLI
+		// But let's keep it simple.
+		if id == "" {
+			log.Fatal("Error: --id is required for consistency group deletion currently")
+		}
+
+		err := apiClient.DeleteSnapshotConsistencyGroup(ctx, id)
+		if err != nil {
+			log.Fatalf("Error deleting consistency group: %v", err)
+		}
+		fmt.Printf("Deleted Consistency Group %s\n", id)
+	},
+}
+
+var createCGCmd = &cobra.Command{
+	Use:   "consistency-group",
+	Short: "Create a Snapshot Consistency Group",
+	Run: func(cmd *cobra.Command, args []string) {
+		name, _ := cmd.Flags().GetString("name")
+		warn, _ := cmd.Flags().GetInt("warning-threshold")
+		limit, _ := cmd.Flags().GetInt("auto-delete-limit")
+		policy, _ := cmd.Flags().GetString("full-policy")
+
+		req := santricity.SnapshotConsistencyGroupCreateRequest{
+			Name:                     name,
+			FullWarnThresholdPercent: warn,
+			AutoDeleteThreshold:      limit,
+			RepositoryFullPolicy:     policy,
+		}
+
+		cg, err := apiClient.CreateSnapshotConsistencyGroup(ctx, req)
+		if err != nil {
+			log.Fatalf("Error creating consistency group: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(cg, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created Consistency Group: %s (ID: %s)\n", cg.Label, cg.ConsistencyGroupRef)
+		}
+	},
+}
+
+var createCGMemberCmd = &cobra.Command{
+	Use:   "consistency-group-member",
+	Short: "Add a volume to a Consistency Group",
+	Run: func(cmd *cobra.Command, args []string) {
+		cgID, _ := cmd.Flags().GetString("cg-id")
+		volID, _ := cmd.Flags().GetString("volume-id")
+		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
+
+		req := santricity.SnapshotConsistencyGroupMemberAddRequest{
+			VolumeId:          volID,
+			RepositoryPercent: repoPct,
+		}
+
+		member, err := apiClient.AddSnapshotConsistencyGroupMember(ctx, cgID, req)
+		if err != nil {
+			log.Fatalf("Error adding member to CG: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(member, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Added Volume %s to Consistency Group %s (Group Ref: %s)\n", volID, cgID, member.ConsistencyGroupId)
+		}
+	},
+}
+
+var createCGSnapshotCmd = &cobra.Command{
+	Use:   "consistency-group-snapshot",
+	Short: "Create a snapshot of a Consistency Group",
+	Run: func(cmd *cobra.Command, args []string) {
+		cgID, _ := cmd.Flags().GetString("cg-id")
+
+		images, err := apiClient.CreateSnapshotConsistencyGroupImage(ctx, cgID)
+		if err != nil {
+			log.Fatalf("Error creating CG snapshot: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(images, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created Snapshot(s) for Consistency Group %s\n", cgID)
+			for _, img := range images {
+				fmt.Printf(" - Image ID: %s (Volume: %s)\n", img.PitRef, img.BaseVol)
+			}
+		}
+	},
+}
+
+var createCGViewCmd = &cobra.Command{
+	Use:   "consistency-group-view",
+	Short: "Create a view (volume) for a Consistency Group Snapshot",
+	Run: func(cmd *cobra.Command, args []string) {
+		cgID, _ := cmd.Flags().GetString("cg-id")
+		snapID, _ := cmd.Flags().GetString("snapshot-id") // This will be the PIT ID? Or CG Snapshot ID?
+		// API expects snapshotImageId. For CG View, it creates views for ALL members?
+		// Wait, CreateSnapshotConsistencyGroupView documentation?
+		// No, usually you create a view for the WHOLE CG.
+		// Let's check the API spec or implementation.
+		// Implementation: path := fmt.Sprintf("/consistency-groups/%s/views", cgID)
+		// Body: SnapshotConsistencyGroupVolumeCreateRequest -> SnapshotImageId
+		// This implies you pick ONE image from the CG snapshot to create a view for? No, that would be weird for a CG view.
+		// CG View creates views for all members.
+		// The `SnapshotImageId` in request might be referring to the PIT of the CG? Or one of the images?
+		// Usually a CG Snapshot has a set of images, but maybe it has a master PIT ID?
+		// `SnapshotConsistencyGroup` has `PitGroupRef`.
+		// `CreateSnapshotConsistencyGroupImage` returns `[]SnapshotImage`.
+		// Maybe the API needs ONE of the image IDs to identify the timestamp?
+		// Let's assume we pass one image ID as reference point.
+
+		name, _ := cmd.Flags().GetString("name")
+		accessMode, _ := cmd.Flags().GetString("mode")
+		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
+
+		req := santricity.SnapshotConsistencyGroupVolumeCreateRequest{
+			PitId:             snapID,
+			Name:              name,
+			AccessMode:        accessMode,
+			RepositoryPercent: repoPct,
+		}
+
+		view, err := apiClient.CreateSnapshotConsistencyGroupVolume(ctx, cgID, req)
+		if err != nil {
+			log.Fatalf("Error creating CG view: %v", err)
+		}
+		if outputFormat == "json" {
+			jsonData, _ := json.MarshalIndent(view, "", "  ")
+			fmt.Println(string(jsonData))
+		} else {
+			fmt.Printf("Created CG View: %s (ID: %s)\n", view.Label, view.ConsistencyGroupViewRef)
+		}
+	},
+}
+
 func init() {
 	createSnapshotGroupCmd.Flags().String("volume-id", "", "Base Volume ID (Ref)")
 	createSnapshotGroupCmd.Flags().String("name", "", "Snapshot Group Name")
@@ -1077,6 +1255,7 @@ func init() {
 	deleteCmd.AddCommand(deleteSnapshotGroupCmd)
 	deleteCmd.AddCommand(deleteSnapshotImageCmd)
 	deleteCmd.AddCommand(deleteSnapshotVolumeCmd)
+	deleteCmd.AddCommand(deleteCGCmd)
 
 	deleteVolumeCmd.Flags().String("id", "", "Volume ID (Ref)")
 	deleteVolumeCmd.Flags().String("name", "", "Volume Name")
@@ -1097,4 +1276,32 @@ func init() {
 
 	deleteSnapshotImageCmd.Flags().String("id", "", "Snapshot Image ID (Ref)")
 	deleteSnapshotImageCmd.Flags().Bool("force", false, "Force delete dependent Snapshot Volumes")
+
+	deleteCGCmd.Flags().String("id", "", "Consistency Group ID (Ref)")
+	deleteCGCmd.Flags().String("name", "", "Consistency Group Name (Ref lookup not implemented)")
+
+	createCGCmd.Flags().String("name", "", "Consistency Group Name")
+	createCGCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage")
+	createCGCmd.Flags().Int("warning-threshold", 80, "Repository Warning Threshold %")
+	createCGCmd.Flags().Int("auto-delete-limit", 30, "Auto-delete limit (0-32)")
+	createCGCmd.Flags().String("full-policy", "purgepit", "Repository Full Policy (purgepit, failbasewrites)")
+	createCGCmd.MarkFlagRequired("name")
+
+	createCGMemberCmd.Flags().String("cg-id", "", "Consistency Group ID")
+	createCGMemberCmd.Flags().String("volume-id", "", "Volume ID to add")
+	createCGMemberCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage for Member")
+	createCGMemberCmd.MarkFlagRequired("cg-id")
+	createCGMemberCmd.MarkFlagRequired("volume-id")
+
+	createCGSnapshotCmd.Flags().String("cg-id", "", "Consistency Group ID")
+	createCGSnapshotCmd.MarkFlagRequired("cg-id")
+
+	createCGViewCmd.Flags().String("cg-id", "", "Consistency Group ID")
+	createCGViewCmd.Flags().String("snapshot-id", "", "Snapshot Image ID (or PIT Ref)")
+	createCGViewCmd.Flags().String("name", "", "View Name")
+	createCGViewCmd.Flags().String("mode", "readOnly", "Access Mode (readOnly, readWrite)")
+	createCGViewCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage")
+	createCGViewCmd.MarkFlagRequired("cg-id")
+	createCGViewCmd.MarkFlagRequired("snapshot-id")
+	createCGViewCmd.MarkFlagRequired("name")
 }

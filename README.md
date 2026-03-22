@@ -2,7 +2,7 @@
 
 # SANtricity Go Client
 
-A Go client library for the NetApp SANtricity API, initially extracted from NetApp Trident and subsequently subtantially improved.
+A Go client library for the NetApp SANtricity API, initially extracted from NetApp Trident and subsequently substantially improved.
 
 Sub-projects:
 
@@ -70,6 +70,7 @@ The library supports common storage management operations:
 
 - **System**: `AboutInfo`, `GetStorageSystem`
 - **Volumes**: `GetVolumes`, `CreateVolume`, `ResizeVolume`, `DeleteVolume`, `MapVolume`, `UnmapVolume`
+- **Snapshots**: WIP
 - **Pools**: `GetVolumePools`
 - **Hosts**: `CreateHost`, `GetHostForPort`
 
@@ -133,11 +134,10 @@ Related concepts ([official FAQs](https://docs.netapp.com/us-en/e-series-santric
 - snapshot image - that's a read-only snapshot 
 - snapshot volume - that's a clone linked to its base volume via snapshots, elsewhere known as "linked clone". SANtricity supports read-only and read-write (these need own reserve on top of snapshot group, which is used by base volumes) linked clones.
 
-**NOTE:** 
-- when presenting linked or clone volumes to a host, you are responsible for "re-signaturing" the volume and dealing with any host "confusion" that may result from it. It is generally safer to map a clone to a host that cannot see the base volume.
+**NOTES:** 
+- when presenting linked clones (confusingly called "snapshot volumes") to a host, you are responsible for "re-signaturing" them and dealing with any host "confusion" that may result from that. It is generally safer to map a clone to a host that cannot see the base volume at the same time.
 - DDP allocates snapshot group capacity in 8GiB units, so array snapshots on volumes smaller than 16GiB are space-inefficient (16G x 25pct = 4GiB)
-
-There are also consistency groups and group snapshots, which may be confusing and are not related to "groups" in snapshot groups. See the offical documentation (including [TR-4747](https://www.netapp.com/media/17167-tr4747.pdf)) or my blog for more on SANtricity snapshots.
+- SANtricity snapshots are space-hungry. It is recommended to only create ephemeral snapshots (that are kept long enough to be used for temporary protection, backup workflows or quick testing, and then deleted)
 
 1. **Create a Snapshot Group** (required for the first snapshot of a volume):
    The `jq` utility can help you find the volumeRef if your system has many volumes.
@@ -189,6 +189,20 @@ The CLI also supports setting credentials and endpoint via environment variables
 - `SANTRICITY_TOKEN`: The bearer token (if using token auth).
 - `SANTRICITY_INSECURE`: Set to "true" to disable TLS verification.
 - `SANTRICITY_CA_CERT`: Set to "/path/to/chain.pem" to use own certificate chain.
+
+## Implementation Notes
+
+### Terminology 
+
+This project uses (almost) correct terms for group snapshots and clones (the correct terms would be snapshots and clones), but in an attempt to change as little as possible and avoid confusing those who use the SANtricity API terminology, I try to achieve consistency between single and group snapshots, so group snapshots-related terms aren't ideal, but are at least consistent.
+
+| Concept |	Single Vol | Consistency Group | SANtricity API Term (bad) |
+| --------| -----------| ------------------| ---------------------|
+| The Snapshot Repository/Group | SnapshotGroup | SnapshotConsistencyGroup | ConsistencyGroup |
+| The Point-in-Time (Frozen) Snapshot Image | SnapshotImage | SnapshotConsistencyGroupImage | ConsistencyGroupSnapshot |
+| The Mountable Snapshot-linked Clone | SnapshotVolume | SnapshotConsistencyGroupVolume | ConsistencyGroupView |
+
+See the official documentation (including [TR-4747](https://www.netapp.com/media/17167-tr4747.pdf)) or my blog for more on SANtricity snapshots.
 
 ## License
 
