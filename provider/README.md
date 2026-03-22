@@ -37,8 +37,8 @@ In terms of dependencies, linked clones ("snapshot volumes") and snapshots ("sna
 The provider currently treats Snapshot Groups as immutable resources regarding their capacity settings.
 
 - **Capacity**: Use the `repository_percentage` argument to set the initial capacity of the snapshot repository relative to the base volume.
-- **Resizing**: There is currently no support for resizing an existing Snapshot Group's repository capacity in-place. Because the resource is immutable, changing `repository_percentage` will force the destruction and recreation of the Snapshot Group—which includes **deleting all contained snapshots and linked clones**. If you need to regularly grow snapshot groups, create an enhancement request in Issues.
-- **Best Practice**: Provision snapshot group capacity generously (e.g., 20-40% or more depending on change rate) to avoid running out of space, as expanding it later requires wiping your snapshot history.
+- **Resizing**: There is currently no support for resizing an existing Snapshot Group's repository capacity in-place. Because that resource is immutable, changing `repository_percentage` will force the destruction and recreation of the Snapshot Group—which includes **deleting all contained snapshots and linked clones**. If you need to regularly grow snapshot repository capacity, create an enhancement request in Issues.
+- **Best Practice**: Provision snapshot group capacity generously (e.g., 20-40% or more depending on change rate) to avoid running out of space, as expanding it later requires wiping your snapshot history and SANtricity snapshots are capacity-hungry.
 
 Snapshot resource:
 
@@ -72,9 +72,9 @@ If you need to move a volume from one host to another (e.g., from `host-a` to `h
 
 ## Known Limitations
 
-- iSCSI and NVMe/RoCE should work, and FC needs testing with real hardware
-- Hosts must have valid IQN or NQN (CHAP-only iSCSI is not supported)
-- Snapshot implementation support single volume snapshots and no snapshot reserve growth. Consistency Groups are not yet implemented
+- NVMe/RoCE works, iSCSI should work, and FC might (needs testing with real hardware, but this provider does not aim for FC support)
+- Hosts must have valid IQN (CHAP-only iSCSI is not supported) or NQN
+- Snapshot implementation supports single volumes and consistency group snapshots that needs testing
 
 ## Install
 
