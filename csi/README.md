@@ -177,12 +177,12 @@ Access modes:
 - [x] `SINGLE_NODE_WRITER`
 - [x] `SINGLE_NODE_SINGLE_WRITER`
 - [x] `SINGLE_NODE_MULTI_WRITER` (`MountVolume`, `ReadWriteOnce` access)
-- [ ] `SINGLE_NODE_READER_ONLY` (requires testing, possible improvements)
+- [ ] `SINGLE_NODE_READER_ONLY` (requires testing, possibly improvements)
 - [ ] `MULTI_NODE_READER_ONLY`
 - [ ] `MULTI_NODE_SINGLE_WRITER`
 - [ ] `MULTI_NODE_MULTI_WRITER`
 
-Multi-node access requires host coordination (e.g. Ceph, BeeGFS), but SCSI-3 reservations and `hostGroup` are both supported so that should work out of box.
+Multi-node access requires host coordination (e.g. Ceph, BeeGFS), but SCSI-3 reservations and `hostGroup` are both supported, so that should work out of box.
 
 API access:
 
@@ -283,4 +283,4 @@ spec:
       nodePort: 32080
 ```
 
-The best approach security-wise is to leverage Kubernetes for authentication as it is done with other services that require authentication.
+Best approach security-wise is to leverage Kubernetes for authentication as it is done with other services that require authentication.

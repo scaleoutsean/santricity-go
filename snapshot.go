@@ -286,8 +286,8 @@ func (c *Client) GetSnapshotVolume(ctx context.Context, id string) (*SnapshotVol
 	return &volume, nil
 }
 
-// CreateSnapshotConsistencyGroup creates a new Consistency Group (Snapshot Group Container).
-func (c *Client) CreateSnapshotConsistencyGroup(ctx context.Context, request SnapshotConsistencyGroupCreateRequest) (*SnapshotConsistencyGroup, error) {
+// CreateConsistencyGroup creates a new Consistency Group (Snapshot Group Container).
+func (c *Client) CreateConsistencyGroup(ctx context.Context, request ConsistencyGroupCreateRequest) (*ConsistencyGroup, error) {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups
 	if _, err := c.Connect(ctx); err != nil {
 		return nil, err
@@ -308,7 +308,7 @@ func (c *Client) CreateSnapshotConsistencyGroup(ctx context.Context, request Sna
 		return nil, fmt.Errorf("failed to create consistency group: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
-	var group SnapshotConsistencyGroup
+	var group ConsistencyGroup
 	err = json.Unmarshal(responseBody, &group)
 	if err != nil {
 		return nil, err
@@ -316,8 +316,8 @@ func (c *Client) CreateSnapshotConsistencyGroup(ctx context.Context, request Sna
 	return &group, nil
 }
 
-// AddSnapshotConsistencyGroupMember adds a volume member to a Consistency Group.
-func (c *Client) AddSnapshotConsistencyGroupMember(ctx context.Context, cgID string, request SnapshotConsistencyGroupMemberAddRequest) (*SnapshotConsistencyGroupMember, error) {
+// AddConsistencyGroupMember adds a volume member to a Consistency Group.
+func (c *Client) AddConsistencyGroupMember(ctx context.Context, cgID string, request ConsistencyGroupMemberAddRequest) (*ConsistencyGroupMember, error) {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/member-volumes
 	if _, err := c.Connect(ctx); err != nil {
 		return nil, err
@@ -338,7 +338,7 @@ func (c *Client) AddSnapshotConsistencyGroupMember(ctx context.Context, cgID str
 		return nil, fmt.Errorf("failed to add consistency group member: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
-	var member SnapshotConsistencyGroupMember
+	var member ConsistencyGroupMember
 	err = json.Unmarshal(responseBody, &member)
 	if err != nil {
 		return nil, err
@@ -346,8 +346,8 @@ func (c *Client) AddSnapshotConsistencyGroupMember(ctx context.Context, cgID str
 	return &member, nil
 }
 
-// CreateSnapshotConsistencyGroupImage creates a new snapshot (PiT) for a Consistency Group.
-func (c *Client) CreateSnapshotConsistencyGroupImage(ctx context.Context, cgID string) ([]SnapshotImage, error) {
+// CreateConsistencyGroupSnapshot creates a new snapshot (PiT) for a Consistency Group.
+func (c *Client) CreateConsistencyGroupSnapshot(ctx context.Context, cgID string) ([]SnapshotImage, error) {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/snapshots
 
 	if _, err := c.Connect(ctx); err != nil {
@@ -373,8 +373,8 @@ func (c *Client) CreateSnapshotConsistencyGroupImage(ctx context.Context, cgID s
 	return images, nil
 }
 
-// CreateSnapshotConsistencyGroupVolume creates a new Consistency Group View (Linked Clone).
-func (c *Client) CreateSnapshotConsistencyGroupVolume(ctx context.Context, cgID string, request SnapshotConsistencyGroupVolumeCreateRequest) (*SnapshotConsistencyGroupVolume, error) {
+// CreateConsistencyGroupView creates a new Consistency Group View (Linked Clone).
+func (c *Client) CreateConsistencyGroupView(ctx context.Context, cgID string, request ConsistencyGroupViewCreateRequest) (*ConsistencyGroupView, error) {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views
 
 	if _, err := c.Connect(ctx); err != nil {
@@ -396,7 +396,7 @@ func (c *Client) CreateSnapshotConsistencyGroupVolume(ctx context.Context, cgID 
 		return nil, fmt.Errorf("failed to create consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
-	var view SnapshotConsistencyGroupVolume
+	var view ConsistencyGroupView
 	err = json.Unmarshal(responseBody, &view)
 	if err != nil {
 		return nil, err
@@ -404,8 +404,8 @@ func (c *Client) CreateSnapshotConsistencyGroupVolume(ctx context.Context, cgID 
 	return &view, nil
 }
 
-// DeleteSnapshotConsistencyGroup deletes a Consistency Group.
-func (c *Client) DeleteSnapshotConsistencyGroup(ctx context.Context, cgID string) error {
+// DeleteConsistencyGroup deletes a Consistency Group.
+func (c *Client) DeleteConsistencyGroup(ctx context.Context, cgID string) error {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups/{id}
 	if _, err := c.Connect(ctx); err != nil {
 		return err
@@ -424,8 +424,8 @@ func (c *Client) DeleteSnapshotConsistencyGroup(ctx context.Context, cgID string
 	return nil
 }
 
-// RemoveSnapshotConsistencyGroupMember removes a volume from a Consistency Group.
-func (c *Client) RemoveSnapshotConsistencyGroupMember(ctx context.Context, cgID string, memberVolumeID string) error {
+// RemoveConsistencyGroupMember removes a volume from a Consistency Group.
+func (c *Client) RemoveConsistencyGroupMember(ctx context.Context, cgID string, memberVolumeID string) error {
 	// Endpoint: /storage-systems/{system-id}/consistency-groups/{id}/members/{memberId}
 	if _, err := c.Connect(ctx); err != nil {
 		return err
@@ -442,4 +442,56 @@ func (c *Client) RemoveSnapshotConsistencyGroupMember(ctx context.Context, cgID 
 	}
 
 	return nil
+}
+
+// GetConcatRepositoryVolumes returns a list of all concatenated repository volumes.
+func (c *Client) GetConcatRepositoryVolumes(ctx context.Context) ([]ConcatRepositoryVolume, error) {
+	// Endpoint: /storage-systems/{system-id}/repositories/concat
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := "/repositories/concat"
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get concat repository volumes: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var concatVols []ConcatRepositoryVolume
+	err = json.Unmarshal(responseBody, &concatVols)
+	if err != nil {
+		return nil, err
+	}
+
+	return concatVols, nil
+}
+
+// GetConcatRepositoryVolume returns a specific concatenated repository volume by ID.
+func (c *Client) GetConcatRepositoryVolume(ctx context.Context, id string) (*ConcatRepositoryVolume, error) {
+	// Endpoint: /storage-systems/{system-id}/repositories/concat/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/repositories/concat/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get concat repository volume: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var concatVol ConcatRepositoryVolume
+	err = json.Unmarshal(responseBody, &concatVol)
+	if err != nil {
+		return nil, err
+	}
+
+	return &concatVol, nil
 }

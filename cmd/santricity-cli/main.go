@@ -1096,7 +1096,7 @@ var deleteCGCmd = &cobra.Command{
 			log.Fatal("Error: --id is required for consistency group deletion currently")
 		}
 
-		err := apiClient.DeleteSnapshotConsistencyGroup(ctx, id)
+		err := apiClient.DeleteConsistencyGroup(ctx, id)
 		if err != nil {
 			log.Fatalf("Error deleting consistency group: %v", err)
 		}
@@ -1113,14 +1113,14 @@ var createCGCmd = &cobra.Command{
 		limit, _ := cmd.Flags().GetInt("auto-delete-limit")
 		policy, _ := cmd.Flags().GetString("full-policy")
 
-		req := santricity.SnapshotConsistencyGroupCreateRequest{
+		req := santricity.ConsistencyGroupCreateRequest{
 			Name:                     name,
 			FullWarnThresholdPercent: warn,
 			AutoDeleteThreshold:      limit,
 			RepositoryFullPolicy:     policy,
 		}
 
-		cg, err := apiClient.CreateSnapshotConsistencyGroup(ctx, req)
+		cg, err := apiClient.CreateConsistencyGroup(ctx, req)
 		if err != nil {
 			log.Fatalf("Error creating consistency group: %v", err)
 		}
@@ -1141,12 +1141,12 @@ var createCGMemberCmd = &cobra.Command{
 		volID, _ := cmd.Flags().GetString("volume-id")
 		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
 
-		req := santricity.SnapshotConsistencyGroupMemberAddRequest{
+		req := santricity.ConsistencyGroupMemberAddRequest{
 			VolumeId:          volID,
 			RepositoryPercent: repoPct,
 		}
 
-		member, err := apiClient.AddSnapshotConsistencyGroupMember(ctx, cgID, req)
+		member, err := apiClient.AddConsistencyGroupMember(ctx, cgID, req)
 		if err != nil {
 			log.Fatalf("Error adding member to CG: %v", err)
 		}
@@ -1165,7 +1165,7 @@ var createCGSnapshotCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cgID, _ := cmd.Flags().GetString("cg-id")
 
-		images, err := apiClient.CreateSnapshotConsistencyGroupImage(ctx, cgID)
+		images, err := apiClient.CreateConsistencyGroupSnapshot(ctx, cgID)
 		if err != nil {
 			log.Fatalf("Error creating CG snapshot: %v", err)
 		}
@@ -1188,17 +1188,17 @@ var createCGViewCmd = &cobra.Command{
 		cgID, _ := cmd.Flags().GetString("cg-id")
 		snapID, _ := cmd.Flags().GetString("snapshot-id") // This will be the PIT ID? Or CG Snapshot ID?
 		// API expects snapshotImageId. For CG View, it creates views for ALL members?
-		// Wait, CreateSnapshotConsistencyGroupView documentation?
+		// Wait, CreateConsistencyGroupView documentation?
 		// No, usually you create a view for the WHOLE CG.
 		// Let's check the API spec or implementation.
 		// Implementation: path := fmt.Sprintf("/consistency-groups/%s/views", cgID)
-		// Body: SnapshotConsistencyGroupVolumeCreateRequest -> SnapshotImageId
+		// Body: ConsistencyGroupViewCreateRequest -> SnapshotImageId
 		// This implies you pick ONE image from the CG snapshot to create a view for? No, that would be weird for a CG view.
 		// CG View creates views for all members.
 		// The `SnapshotImageId` in request might be referring to the PIT of the CG? Or one of the images?
 		// Usually a CG Snapshot has a set of images, but maybe it has a master PIT ID?
-		// `SnapshotConsistencyGroup` has `PitGroupRef`.
-		// `CreateSnapshotConsistencyGroupImage` returns `[]SnapshotImage`.
+		// `ConsistencyGroup` has `PitGroupRef`.
+		// `CreateConsistencyGroupSnapshot` returns `[]SnapshotImage`.
 		// Maybe the API needs ONE of the image IDs to identify the timestamp?
 		// Let's assume we pass one image ID as reference point.
 
@@ -1206,14 +1206,14 @@ var createCGViewCmd = &cobra.Command{
 		accessMode, _ := cmd.Flags().GetString("mode")
 		repoPct, _ := cmd.Flags().GetFloat64("repo-pct")
 
-		req := santricity.SnapshotConsistencyGroupVolumeCreateRequest{
+		req := santricity.ConsistencyGroupViewCreateRequest{
 			PitId:             snapID,
 			Name:              name,
 			AccessMode:        accessMode,
 			RepositoryPercent: repoPct,
 		}
 
-		view, err := apiClient.CreateSnapshotConsistencyGroupVolume(ctx, cgID, req)
+		view, err := apiClient.CreateConsistencyGroupView(ctx, cgID, req)
 		if err != nil {
 			log.Fatalf("Error creating CG view: %v", err)
 		}

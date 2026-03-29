@@ -391,9 +391,9 @@ type SnapshotVolume struct {
 	Status      string `json:"status"`
 }
 
-// SnapshotConsistencyGroup represents a Consistency Group for snapshots (Snapshot Group container)
+// ConsistencyGroup represents a Consistency Group for snapshots (Snapshot Group container)
 // API definition name: "PITConsistencyGroup"
-type SnapshotConsistencyGroup struct {
+type ConsistencyGroup struct {
 	ConsistencyGroupRef string `json:"cgRef"`
 	Label               string `json:"label"`
 	RepFullPolicy       string `json:"repFullPolicy"`
@@ -402,9 +402,9 @@ type SnapshotConsistencyGroup struct {
 	RollbackPriority    string `json:"rollbackPriority,omitempty"`
 }
 
-// SnapshotConsistencyGroupMember represents a volume member of a Consistency Group
+// ConsistencyGroupMember represents a volume member of a Consistency Group
 // API definition name: "PITCGMember"
-type SnapshotConsistencyGroupMember struct {
+type ConsistencyGroupMember struct {
 	ConsistencyGroupId      string `json:"consistencyGroupId"`
 	VolumeId                string `json:"volumeId"`
 	VolumeWwn               string `json:"volumeWwn"`
@@ -416,9 +416,9 @@ type SnapshotConsistencyGroupMember struct {
 	FullWarnThreshold       int    `json:"fullWarnThreshold"`
 }
 
-// SnapshotConsistencyGroupVolume represents a Linked Clone (View) of a Consistency Group Snapshot
+// ConsistencyGroupView represents a Linked Clone (View) of a Consistency Group Snapshot
 // API definition name: "PITConsistencyGroupView"
-type SnapshotConsistencyGroupVolume struct {
+type ConsistencyGroupView struct {
 	ConsistencyGroupViewRef string `json:"cgViewRef"`
 	GroupRef                string `json:"groupRef"`
 	Label                   string `json:"label"`
@@ -439,4 +439,18 @@ type Host struct {
 
 type SnapshotRollbackRequest struct {
 	PitRef []string `json:"pitRef"`
+}
+
+// ConcatRepositoryVolume represents a concatenated repository volume used by Snapshots and R/W Linked Clones
+// API definition name: "ConcatRepositoryVolume"
+type ConcatRepositoryVolume struct {
+	ConcatVolRef      string   `json:"concatVolRef"`
+	Status            string   `json:"status"`
+	MemberCount       int      `json:"memberCount"`
+	AggregateCapacity string   `json:"aggregateCapacity"`
+	MemberRefs        []string `json:"memberRefs"`
+	BaseObjectType    string   `json:"baseObjectType"`
+	BaseObjectId      string   `json:"baseObjectId"`
+	Name              string   `json:"name,omitempty"`
+	MemberNames       string   `json:"memberNames,omitempty"`
 }

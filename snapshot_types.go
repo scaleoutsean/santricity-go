@@ -28,8 +28,8 @@ type SnapshotVolumeCreateRequest struct {
 	FullThreshold        int     `json:"fullThreshold,omitempty"`
 }
 
-// SnapshotConsistencyGroupCreateRequest represents the request to create a new Consistency Group (Snapshot Group container)
-type SnapshotConsistencyGroupCreateRequest struct {
+// ConsistencyGroupCreateRequest represents the request to create a new Consistency Group (Snapshot Group container)
+type ConsistencyGroupCreateRequest struct {
 	Name                     string `json:"name"`
 	FullWarnThresholdPercent int    `json:"fullWarnThresholdPercent,omitempty"`
 	AutoDeleteThreshold      int    `json:"autoDeleteThreshold,omitempty"`
@@ -37,8 +37,8 @@ type SnapshotConsistencyGroupCreateRequest struct {
 	RollbackPriority         string `json:"rollbackPriority,omitempty"`
 }
 
-// SnapshotConsistencyGroupMemberAddRequest represents the request to add a volume to a CG
-type SnapshotConsistencyGroupMemberAddRequest struct {
+// ConsistencyGroupMemberAddRequest represents the request to add a volume to a CG
+type ConsistencyGroupMemberAddRequest struct {
 	VolumeId          string  `json:"volumeId"`
 	RepositoryPoolId  string  `json:"repositoryPoolId,omitempty"`
 	RepositoryPercent float64 `json:"repositoryPercent,omitempty"`
@@ -46,8 +46,8 @@ type SnapshotConsistencyGroupMemberAddRequest struct {
 	ValidateParity    bool    `json:"validateParity,omitempty"`
 }
 
-// SnapshotConsistencyGroupVolumeCreateRequest represents the request to create a View/Clone of a CG
-type SnapshotConsistencyGroupVolumeCreateRequest struct {
+// ConsistencyGroupViewCreateRequest represents the request to create a View/Clone of a CG
+type ConsistencyGroupViewCreateRequest struct {
 	Name              string  `json:"name"`
 	RepositoryPoolId  string  `json:"repositoryPoolId,omitempty"`
 	PitId             string  `json:"pitId,omitempty"`

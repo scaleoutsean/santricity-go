@@ -194,15 +194,18 @@ The CLI also supports setting credentials and endpoint via environment variables
 
 ### Terminology 
 
-This project uses (almost) correct terms for group snapshots and clones (the correct terms would be snapshots and clones), but in an attempt to change as little as possible and avoid confusing those who use the SANtricity API terminology, I try to achieve consistency between single and group snapshots, so group snapshots-related terms aren't ideal, but are at least consistent.
+The SANtricity UI avoids exposing Repo Groups and doesn't even have a name for them. Other terms may be confusing. Some examples:
 
-| Concept |	Single Vol | Consistency Group | SANtricity API Term (bad) |
-| --------| -----------| ------------------| ---------------------|
-| The Snapshot Repository/Group | SnapshotGroup | SnapshotConsistencyGroup | ConsistencyGroup |
-| The Point-in-Time (Frozen) Snapshot Image | SnapshotImage | SnapshotConsistencyGroupImage | ConsistencyGroupSnapshot |
-| The Mountable Snapshot-linked Clone | SnapshotVolume | SnapshotConsistencyGroupVolume | ConsistencyGroupView |
+| Concept | Single Vol | Consistency Group |
+| --------| -----------| ------------------|
+| Base Snapshot Engine (Logic & Settings) | SnapshotGroup | ConsistencyGroup |
+| The Point-in-Time (Frozen) Snapshot Image | SnapshotImage | ConsistencyGroupSnapshot |
+| The Mountable Snapshot-linked Clone | SnapshotVolume | ConsistencyGroupView |
+| Hidden Evacuation Storage (CoW reserve) | ConcatRepositoryVolume | ConcatRepositoryVolume |
 
-See the official documentation (including [TR-4747](https://www.netapp.com/media/17167-tr4747.pdf)) or my blog for more on SANtricity snapshots.
+The above may be expanded with Repo Group terms later.
+
+See the official documentation (including [TR-4747](https://www.netapp.com/media/17167-tr4747.pdf)) and my blog for more on SANtricity snapshots.
 
 ## License
 
