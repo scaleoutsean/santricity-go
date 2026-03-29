@@ -495,3 +495,23 @@ func (c *Client) GetConcatRepositoryVolume(ctx context.Context, id string) (*Con
 
 	return &concatVol, nil
 }
+
+// DeleteConsistencyGroupView deletes a Consistency Group View.
+func (c *Client) DeleteConsistencyGroupView(ctx context.Context, cgID string, viewID string) error {
+// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views/{viewId}
+if _, err := c.Connect(ctx); err != nil {
+return err
+}
+path := fmt.Sprintf("/consistency-groups/%s/views/%s", cgID, viewID)
+
+resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+if err != nil {
+return err
+}
+
+if resp.StatusCode != 200 && resp.StatusCode != 204 {
+return fmt.Errorf("failed to delete consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
+}
+
+return nil
+}
