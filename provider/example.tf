@@ -97,3 +97,50 @@ resource "santricity_snapshot_volume" "pg_data_clone_dev" {
   full_threshold        = 90
 }
 
+
+# --- Consistency Group Examples ---
+
+# 1. Create a Consistency Group
+resource "santricity_consistency_group" "pg_cg" {
+  name                        = "pg-consistency-group"
+  full_warn_threshold_percent = 80
+  auto_delete_threshold       = 30
+  repository_full_policy      = "purgepit"
+  rollback_priority           = "medium"
+}
+
+# 2. Add volumes to the Consistency Group
+resource "santricity_consistency_group_member" "pg_cg_data" {
+  consistency_group_id = santricity_consistency_group.pg_cg.id
+  volume_id            = santricity_volume.pg_data.id
+  repository_percent   = 20
+  repository_pool_id   = var.pool_id
+}
+
+resource "santricity_consistency_group_member" "pg_cg_log" {
+  consistency_group_id = santricity_consistency_group.pg_cg.id
+  volume_id            = santricity_volume.pg_log.id
+  repository_percent   = 20
+  repository_pool_id   = var.pool_id
+}
+
+# 3. Take a Consistency Group Snapshot
+resource "santricity_consistency_group_snapshot" "pg_cg_snap" {
+  consistency_group_id = santricity_consistency_group.pg_cg.id
+
+  # Ensure members are added before taking the snapshot
+  depends_on = [
+    santricity_consistency_group_member.pg_cg_data,
+    santricity_consistency_group_member.pg_cg_log
+  ]
+}
+
+# 4. Create a Mountable View (Linked Clone) for the Consistency Group Snapshot
+resource "santricity_consistency_group_view" "pg_cg_clone" {
+  consistency_group_id = santricity_consistency_group.pg_cg.id
+  sequence_number      = santricity_consistency_group_snapshot.pg_cg_snap.sequence_number
+  name                 = "pg-cg-dev-view"
+  access_mode          = "readWrite"
+  repository_percent   = 20
+  repository_pool_id   = var.pool_id
+}

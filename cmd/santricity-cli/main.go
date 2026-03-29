@@ -1226,24 +1226,23 @@ var createCGViewCmd = &cobra.Command{
 	},
 }
 
-
 var deleteCGViewCmd = &cobra.Command{
-        Use:   "consistency-group-view",
-        Short: "Delete a Consistency Group View",
-        Run: func(cmd *cobra.Command, args []string) {
-                cgID, _ := cmd.Flags().GetString("cg-id")
-                viewID, _ := cmd.Flags().GetString("id")
+	Use:   "consistency-group-view",
+	Short: "Delete a Consistency Group View",
+	Run: func(cmd *cobra.Command, args []string) {
+		cgID, _ := cmd.Flags().GetString("cg-id")
+		viewID, _ := cmd.Flags().GetString("id")
 
-                if cgID == "" || viewID == "" {
-                        log.Fatal("Error: --cg-id and --id are required")
-                }
+		if cgID == "" || viewID == "" {
+			log.Fatal("Error: --cg-id and --id are required")
+		}
 
-                err := apiClient.DeleteConsistencyGroupView(ctx, cgID, viewID)
-                if err != nil {
-                        log.Fatalf("Error deleting consistency group view: %v", err)
-                }
-                fmt.Printf("Deleted Consistency Group View %s\n", viewID)
-        },
+		err := apiClient.DeleteConsistencyGroupView(ctx, cgID, viewID)
+		if err != nil {
+			log.Fatalf("Error deleting consistency group view: %v", err)
+		}
+		fmt.Printf("Deleted Consistency Group View %s\n", viewID)
+	},
 }
 
 func init() {
@@ -1301,9 +1300,8 @@ func init() {
 	deleteCGCmd.Flags().String("id", "", "Consistency Group ID (Ref)")
 	deleteCGCmd.Flags().String("name", "", "Consistency Group Name (Ref lookup not implemented)")
 
-        deleteCGViewCmd.Flags().String("id", "", "Consistency Group View ID (Ref)")
-        deleteCGViewCmd.Flags().String("cg-id", "", "Consistency Group ID (Ref)")
-
+	deleteCGViewCmd.Flags().String("id", "", "Consistency Group View ID (Ref)")
+	deleteCGViewCmd.Flags().String("cg-id", "", "Consistency Group ID (Ref)")
 
 	createCGCmd.Flags().String("name", "", "Consistency Group Name")
 	createCGCmd.Flags().Float64("repo-pct", 20.0, "Repository Percentage")

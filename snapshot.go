@@ -498,20 +498,159 @@ func (c *Client) GetConcatRepositoryVolume(ctx context.Context, id string) (*Con
 
 // DeleteConsistencyGroupView deletes a Consistency Group View.
 func (c *Client) DeleteConsistencyGroupView(ctx context.Context, cgID string, viewID string) error {
-// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views/{viewId}
-if _, err := c.Connect(ctx); err != nil {
-return err
-}
-path := fmt.Sprintf("/consistency-groups/%s/views/%s", cgID, viewID)
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views/{viewId}
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/views/%s", cgID, viewID)
 
-resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
-if err != nil {
-return err
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	return nil
 }
 
-if resp.StatusCode != 200 && resp.StatusCode != 204 {
-return fmt.Errorf("failed to delete consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
+// GetConsistencyGroup returns a specific Consistency Group by ID.
+func (c *Client) GetConsistencyGroup(ctx context.Context, id string) (*ConsistencyGroup, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{id}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s", id)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil // Return nil, nil for Terraform ReadContext missing check
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get consistency group: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var group ConsistencyGroup
+	err = json.Unmarshal(responseBody, &group)
+	if err != nil {
+		return nil, err
+	}
+
+	return &group, nil
 }
 
-return nil
+// GetConsistencyGroupMember returns a specific volume member of a Consistency Group.
+func (c *Client) GetConsistencyGroupMember(ctx context.Context, cgID string, volumeID string) (*ConsistencyGroupMember, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/member-volumes/{volumeRef}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/member-volumes/%s", cgID, volumeID)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get consistency group member: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var member ConsistencyGroupMember
+	err = json.Unmarshal(responseBody, &member)
+	if err != nil {
+		return nil, err
+	}
+
+	return &member, nil
+}
+
+// GetConsistencyGroupSnapshot returns snapshots of a given sequence number for a Consistency Group.
+func (c *Client) GetConsistencyGroupSnapshot(ctx context.Context, cgID string, sequenceNumber string) ([]SnapshotImage, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/snapshots/{sequenceNumber}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/snapshots/%s", cgID, sequenceNumber)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get consistency group snapshot: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var images []SnapshotImage
+	err = json.Unmarshal(responseBody, &images)
+	if err != nil {
+		return nil, err
+	}
+
+	return images, nil
+}
+
+// DeleteConsistencyGroupSnapshot deletes consistency group snapshots associated with a sequence number.
+func (c *Client) DeleteConsistencyGroupSnapshot(ctx context.Context, cgID string, sequenceNumber string) error {
+	if _, err := c.Connect(ctx); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/snapshots/%s", cgID, sequenceNumber)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "DELETE", path)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		return fmt.Errorf("failed to delete consistency group snapshot: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	return nil
+}
+
+// GetConsistencyGroupView returns a specific Consistency Group View by ID.
+func (c *Client) GetConsistencyGroupView(ctx context.Context, cgID string, viewID string) (*ConsistencyGroupView, error) {
+	// Endpoint: /storage-systems/{system-id}/consistency-groups/{cg-id}/views/{viewId}
+	if _, err := c.Connect(ctx); err != nil {
+		return nil, err
+	}
+	path := fmt.Sprintf("/consistency-groups/%s/views/%s", cgID, viewID)
+
+	resp, responseBody, err := c.InvokeAPI(ctx, nil, "GET", path)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, nil
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("failed to get consistency group view: status %d, body: %s", resp.StatusCode, string(responseBody))
+	}
+
+	var view ConsistencyGroupView
+	err = json.Unmarshal(responseBody, &view)
+	if err != nil {
+		return nil, err
+	}
+
+	return &view, nil
 }
