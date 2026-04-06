@@ -1,8 +1,9 @@
 name: Release CLI
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'cmd/santricity-cli/v*'
 
 jobs:
   releases-matrix:
