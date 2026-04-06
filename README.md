@@ -21,6 +21,14 @@ For Terraform SANtricity Provider and SANtricity CSI, check their respective fol
 
 ## Usage
 
+Build for OS and architecture you need.
+
+```sh
+go build ./cmd/santricity-cli/
+# GOOS=linux GOARCH=arm64 go build ./cmd/santricity-cli/
+# GOOS=windows go build ./cmd/santricity-cli/
+```
+
 ### CLI
 
 ```bash
@@ -70,7 +78,7 @@ The library supports common storage management operations:
 
 - **System**: `AboutInfo`, `GetStorageSystem`
 - **Volumes**: `GetVolumes`, `CreateVolume`, `ResizeVolume`, `DeleteVolume`, `MapVolume`, `UnmapVolume`
-- **Snapshots**: WIP
+- **Snapshots**: `CreateSnapshotImage`, `CreateSnapshotVolume`, `DeleteSnapshotVolume`, `CreateCGSnapshot`...
 - **Pools**: `GetVolumePools`
 - **Hosts**: `CreateHost`, `GetHostForPort`
 

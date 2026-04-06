@@ -1,0 +1,43 @@
+name: Build CLI Binaries
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - 'cmd/santricity-cli/**'
+      - '*.go'
+      - 'go.mod'
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - 'cmd/santricity-cli/**'
+      - '*.go'
+      - 'go.mod'
+
+jobs:
+  build-binaries:
+    name: Build CLI Artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows]
+        goarch: [amd64]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26.1'
+        cache: false
+        
+    - name: Build Binary
+      run: |
+        cd cmd/santricity-cli
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -v -o santricity-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }} .
+        
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: santricity-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: cmd/santricity-cli/santricity-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}

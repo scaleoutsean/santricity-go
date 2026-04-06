@@ -16,7 +16,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.25.2'
+        go-version: '1.26.1'
         check-latest: true
         cache: false # Disable cache to fix "tar failed to restore" errors
 
