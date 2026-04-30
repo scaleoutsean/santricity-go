@@ -15,7 +15,7 @@ This is a Container Storage Interface (CSI) driver for NetApp SANtricity storage
 
 - Kubernetes 1.20+
 - NetApp E-Series Array with SANtricity (embedded API only; Web Services Proxy is not supported).
-- iSCSI initiator tools installed on all worker nodes (`open-iscsi`) or (experimental) NVMe/RoCE.
+- iSCSI initiator tools installed on all worker nodes (`open-iscsi`) or (`nvme` CLI) NVMe/RoCE.
 
 ## Building the Driver
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/dell/goiscsi"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -393,7 +394,61 @@ func (d *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 }
 
 func (d *Driver) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVolumeStatsRequest) (*csi.NodeGetVolumeStatsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "NodeGetVolumeStats not implemented yet")
+	if req.GetVolumeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "Volume ID must be provided")
+	}
+	volumePath := req.GetVolumePath()
+	if volumePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "Volume Path must be provided")
+	}
+
+	exists, err := mount.PathExists(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to check if volume path %q exists: %v", volumePath, err)
+	}
+	if !exists {
+		return nil, status.Errorf(codes.NotFound, "Volume path %s does not exist", volumePath)
+	}
+
+	mounter := mount.New("")
+	isNotMount, err := mounter.IsLikelyNotMountPoint(volumePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to determine if %q is mount point: %v", volumePath, err)
+	}
+	if isNotMount {
+		return nil, status.Errorf(codes.NotFound, "Volume path %s is not a mount point", volumePath)
+	}
+
+	var stat unix.Statfs_t
+	err = unix.Statfs(volumePath, &stat)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get stats for volume path %s: %v", volumePath, err)
+	}
+
+	availableBytes := int64(stat.Bavail) * int64(stat.Bsize)
+	capacityBytes := int64(stat.Blocks) * int64(stat.Bsize)
+	usedBytes := (int64(stat.Blocks) - int64(stat.Bfree)) * int64(stat.Bsize)
+
+	inodesTotal := int64(stat.Files)
+	inodesFree := int64(stat.Ffree)
+	inodesUsed := inodesTotal - inodesFree
+
+	return &csi.NodeGetVolumeStatsResponse{
+		Usage: []*csi.VolumeUsage{
+			{
+				Available: availableBytes,
+				Total:     capacityBytes,
+				Used:      usedBytes,
+				Unit:      csi.VolumeUsage_BYTES,
+			},
+			{
+				Available: inodesFree,
+				Total:     inodesTotal,
+				Used:      inodesUsed,
+				Unit:      csi.VolumeUsage_INODES,
+			},
+		},
+	}, nil
 }
 
 func (d *Driver) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
@@ -461,7 +516,8 @@ func (d *Driver) NodeGetCapabilities(ctx context.Context, req *csi.NodeGetCapabi
 
 func (d *Driver) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
-		NodeId: d.nodeID,
+		NodeId:            d.nodeID,
+		MaxVolumesPerNode: 1024, // SANtricity arrays support 1024 (entry) or 2048 (mid-range). Defaulting to 1024 for safety.
 	}, nil
 }
 
