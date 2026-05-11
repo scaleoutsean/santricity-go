@@ -5,21 +5,22 @@ This is a Container Storage Interface (CSI) driver for NetApp SANtricity storage
 ## Features
 
 - **Dynamic Provisioning**: Create volumes on demand.
-- **iSCSI and NVMe/RoCE Connectivity**: Automatically mounts volumes to pods using iSCSI or NVMe/RoCE (support built in, needs testing)
+- **iSCSI and NVMe/RoCE Connectivity**: Automatically mounts volumes to pods using iSCSI or NVMe/RoCE
 - **Volume Expansion**: Resizing of PVCs.
 - **Volume Metadata Tagging**: PVC metadata are stored in SANtricity volume metadata.
 - **DDP Support**: Optimized for Dynamic Disk Pools (DDP) with RAID1/RAID6 volume support.
 - **Indepdendent Multiple Backends for Multi-Rack, Multi-Array Clusters**: One egg per basket. Independent CSI for each rack and in-rack E-Series array(s)
+- - **Snapshots and Linked Clones**: TODO
 
 ## Prerequisites
 
-- Kubernetes 1.20+
-- NetApp E-Series Array with SANtricity (embedded API only; Web Services Proxy is not supported).
-- iSCSI initiator tools installed on all worker nodes (`open-iscsi`) or (`nvme` CLI) NVMe/RoCE.
+- Kubernetes 1.30+
+- NetApp E-Series array with SANtricity v11.90+ (proxies are not supported)
+- Appropriate client package (`open-iscsi` and `multipath-tools` for iSCSI, or `nvme-cli` for NVMe/RoCE) installed on all worker nodes
 
 ## Building the Driver
 
-To build the CSI driver image:
+To build the CSI driver image for both Controller and Node:
 
 ```bash
 docker build -t santricity-csi:latest -f csi/Dockerfile .
@@ -27,7 +28,7 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
 
 *Note: You may need to push this to a registry accessible by your cluster.*
 
-Alternatively, use a GHCR image from [this page](https://github.com/scaleoutsean/santricity-go/pkgs/container/santricity-go). Pick a recent `:csi-v{VER}` tag and set the Helm chart's CSI driver's image tag to that (below).
+Alternatively, use a GHCR image from [this page](https://github.com/scaleoutsean/santricity-go/pkgs/container/santricity-go). Pick a recent `:csi-v{VER}` tag and set the Helm chart's CSI driver's image tag to that (see below).
 
 ## Deployment
 
@@ -46,13 +47,13 @@ The recommended way to deploy the driver is using the included Helm chart.
       *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
 
 2. **Install with Helm**:
-   Run the install command from the root of the repository, referencing the correct location of `my-values.yaml`:
+  Run the install command from the root of the repository, referencing the correct location of `my-values.yaml`:
 
   ```bash
   helm install santricity-csi ./charts/santricity-csi -f my-values.yaml --namespace santricity-csi --create-namespace
   ```
 
-  Or override values directly (example for k0s):
+  Or override the values directly (example for k0s):
 
   ```bash
   helm install santricity-csi ./charts/santricity-csi \
@@ -63,12 +64,12 @@ The recommended way to deploy the driver is using the included Helm chart.
      --set node.kubeletDir="/var/lib/k0s/kubelet"
   ```
 
-  Check SANtricity CSI status:
+  Check SANtricity CSI's status:
   ```sh
   kubectl get pods -n santricity-csi # -l app.kubernetes.io/name=santricity-csi
   ```
 
-  If no issues, it may be good time to delete `my-values.yaml` or edit out SANtricity credentials from it. Next, create Storage Classes.
+  If no issues, delete `my-values.yaml` or edit out your SANtricity credentials from it. Next, create Storage Classes (examples are available below).
 
 ### Manual Deployment (Alternative)
 
@@ -130,7 +131,7 @@ go build ./cmd/santricity-cli/
 ./santricity-cli --endpoint 10.0.0.1 --username monitor --password "monitor123" get pools --insecure
 ```
 
-See [README](./README.md) or use Swagger if you get stuck.
+See [README](../README.md) for SANtricity CLI or use E-Series Swagger if you get stuck.
 
 ### 2. Configure StorageClasses
 
@@ -148,7 +149,7 @@ This driver is currently expected to work with **iSCSI** and **NVMe-oF (RoCE)** 
 
 **Limitation: One Protocol per Kubernetes Cluster**
 
-Due to the way hosts are identified (Single IQN per node for iSCSI, Single NQN per node for NVMe), a Kubernetes node should be configured to strictly use **one** data protocol for CSI traffic. Mixing protocols on the same node (e.g., some pods using iSCSI and others using NVMe) is not supported, as it would require duplicate or complex host registrations on the array.
+Due to the way hosts are identified (Single IQN per node for iSCSI, Single NQN per node for NVMe), a Kubernetes node should be configured to strictly use **one** data protocol for CSI data traffic. Mixing protocols on the same node (e.g., some pods using iSCSI and others using NVMe) is not supported, as it would require duplicate or complex host registrations on the array.
 If you can group worker nodes by protocol type, you could potentially create and use two "virtual" backends to the same storage pool.
 
 - **iSCSI**: Uses the node's Initiator IQN (`/etc/iscsi/initiatorname.iscsi`).
@@ -185,7 +186,7 @@ parameters:
 Notes:
 
 - Storage Class annotation on a SC may be set to `true` if you want to make that SC default
-- Change `provisioner` name if your driver is named differently
+- Change `provisioner` values if your CSI driver is named differently
 
 This allows you to manage capacity at the single DDP level while offering different performance/protection tiers to Kubernetes users.
 
@@ -252,7 +253,20 @@ EF-Series can't serve two supported protocols at once, but even so - one may hav
 
 ## Troubleshooting
 
-### Controller API Connectivity Issues (CNI/Routing)
+### Logs and debug mode
+
+Check the logs of the controller:
+
+```sh
+kubectl get pods -n santricity-csi
+kubectl logs <pod> -n santricity-csi 
+```
+
+**NOTE:** you may run SANtricity CSI in debug mode, but note that secrets may leak into debug logs.
+
+Check the logs of the node plugin on a specific node:
+
+### CSI Controller API connectivity issues (CNI/Routing)
 
 If the controller pod logs show `context deadline exceeded` when connecting to the SANtricity API, but you can reach the API from the Kubernetes nodes directly, your cluster's CNI may be failing to route or SNAT pod traffic to the external management network.
 
@@ -262,33 +276,19 @@ As a quick workaround, you can force the controller deployment to use the host's
 kubectl patch deployment santricity-csi-controller -n santricity-csi -p '{"spec":{"template":{"spec":{"hostNetwork":true}}}}'
 ```
 
-Check the logs of the controller:
-
-```sh
-kubectl logs -f deployment/santricity-csi-controller -n kube-system -c csi-driver
-```
-
-**NOTE:** you may run SANtricity CSI in debug mode, but note that secrets may leak into debug logs.
-
-Check the logs of the node plugin on a specific node:
-
-```sh
-kubectl logs -f daemonset/santricity-csi-node -n kube-system
-```
+### Uninstall and re-install keeping custom arguments from Helm 
 
 If you upgrade SANtricity CSI and use custom kubelet directory, keep the customization:
 
 ```sh
 helm upgrade --install santricity-csi ./charts/santricity-csi \
   --set node.kubeletDir=/var/lib/k0s/kubelet
-# Uninstall wrong upgrade
-# helm uninstall santricity-csi -n santricity-csi 
 ```
 
-Enable Cillium CNI routing bypass from SANtricity CSI pods (MicroK8s):
+Uninstall wrong upgrade:
 
 ```sh
-sudo k8s kubectl patch deployment santricity-csi-controller -n santricity-csi -p '{"spec":{"template":{"spec":{"hostNetwork":true}}}}'
+helm uninstall santricity-csi -n santricity-csi 
 ```
 
 ## Monitoring
@@ -313,21 +313,25 @@ metadata:
     prometheus.io/path: "/metrics"
 ```
 
-If you need to collect these without authentication and from outside of Kubernetes, you need to open access to every node via `NodePort` service type. 
+If you need to collect these without authentication and from outside of Kubernetes, you need to open access to every node via a `NodePort` service type. You can create a service directly using `kubectl`:
 
 ```sh
-kubectl apply -f csi/deploy/metrics-service-example.yaml
-```
-
-To open that port only on the node where `santricity-csi-controller` runs:
-
-```yaml
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: santricity-csi-metrics
+  namespace: santricity-csi
 spec:
+  selector:
+    app: santricity-csi-controller
   type: NodePort
-  externalTrafficPolicy: Local  # <--- The Magic Switch
+  externalTrafficPolicy: Local
   ports:
     - port: 8080
+      targetPort: 8080
       nodePort: 32080
+EOF
 ```
 
 Best approach security-wise is to leverage Kubernetes for authentication as it is done with other services that require authentication.
