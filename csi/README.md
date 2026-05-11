@@ -252,6 +252,16 @@ EF-Series can't serve two supported protocols at once, but even so - one may hav
 
 ## Troubleshooting
 
+### Controller API Connectivity Issues (CNI/Routing)
+
+If the controller pod logs show `context deadline exceeded` when connecting to the SANtricity API, but you can reach the API from the Kubernetes nodes directly, your cluster's CNI may be failing to route or SNAT pod traffic to the external management network.
+
+As a quick workaround, you can force the controller deployment to use the host's network:
+
+```bash
+kubectl patch deployment santricity-csi-controller -n santricity-csi -p '{"spec":{"template":{"spec":{"hostNetwork":true}}}}'
+```
+
 Check the logs of the controller:
 
 ```sh
@@ -273,6 +283,12 @@ helm upgrade --install santricity-csi ./charts/santricity-csi \
   --set node.kubeletDir=/var/lib/k0s/kubelet
 # Uninstall wrong upgrade
 # helm uninstall santricity-csi -n santricity-csi 
+```
+
+Enable Cillium CNI routing bypass from SANtricity CSI pods (MicroK8s):
+
+```sh
+sudo k8s kubectl patch deployment santricity-csi-controller -n santricity-csi -p '{"spec":{"template":{"spec":{"hostNetwork":true}}}}'
 ```
 
 ## Monitoring

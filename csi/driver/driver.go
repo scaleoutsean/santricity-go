@@ -136,7 +136,7 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 			DebugTraceFlags: map[string]bool{
 				// Disable tracing sensitive info by default
 				"method": true,
-				"api":    false, // Potentially logs full requests including credentials
+				"api":    true, // Enables debugging the actual HTTP requests
 			},
 			VerifyTLS: strings.EqualFold(os.Getenv("SANTRICITY_VERIFY_TLS"), "true"), // Explicitly disable verification for lab use by default
 			OnRequest: metrics.RequestCallback,
@@ -171,7 +171,7 @@ func NewDriver(driverName, nodeID, endpoint, apiUrl, user, password string) (*Dr
 			// Panic might be good to restart the pod quickly if config is wrong
 			// But for now purely logging is safer to debug
 		} else {
-			klog.Infof("Connectivity Check Passed: Connected to array %s (ID: %s)", sys.Name, sys.ID)
+			klog.Infof("Connectivity Check Passed: Connected to array %s", sys.Name)
 		}
 	} else {
 		klog.Warning("No valid SANtricity API URL provided. Controller operations will fail.")
