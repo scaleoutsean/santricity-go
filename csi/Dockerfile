@@ -1,5 +1,5 @@
 # Dockerfile for SANtricity CSI Driver
-FROM golang:1.25.2 AS builder
+FROM golang:1.26.3 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
