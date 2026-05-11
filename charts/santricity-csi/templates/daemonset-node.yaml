@@ -78,7 +78,7 @@ spec:
           hostPath:
             # Standard: /var/lib/kubelet
             path: {{ .Values.node.kubeletDir }}
-            type: Directory
+            type: DirectoryOrCreate
         - name: plugin-dir
           hostPath:
             # Adjust prefix matching kubelet-dir above
@@ -88,7 +88,7 @@ spec:
           hostPath:
             # Adjust prefix matching kubelet-dir above
             path: {{ .Values.node.kubeletDir }}/plugins_registry/
-            type: Directory
+            type: DirectoryOrCreate
         - name: device-dir
           hostPath:
             path: /dev

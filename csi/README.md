@@ -34,34 +34,41 @@ Alternatively, use a GHCR image from [this page](https://github.com/scaleoutsean
 The recommended way to deploy the driver is using the included Helm chart.
 
 1. **Configure Parameters**:
-   Modify `charts/santricity-csi/values.yaml` to match your environment.
-   
-   *   **Credentials**: Set `controller.credentials.username` and `controller.credentials.password`.
-   *   **Controller Endpoint**: Set `controller.endpoint` to your SANtricity management IP(s) (e.g., `"https://10.10.1.10:8443"`).
-   *   **Data IPs**: Set `controller.dataIPs` to the iSCSI/NVMe-oF data interfaces.
-   *   **Kubelet Directory**: If using a distribution like k0s, k3s, or MicroK8s, set `node.kubeletDir`.
-       *   **Standard**: `/var/lib/kubelet` (default)
-       *   **k0s**: `/var/lib/k0s/kubelet`
-       *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
-       *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
+  Copy `charts/santricity-csi/values.yaml` to `my-values.yaml` and edit to match your environment.
+  
+  *   **Credentials**: Set `controller.credentials.username` and `controller.credentials.password`.
+  *   **Controller Endpoint**: Set `controller.endpoint` to your SANtricity management IP(s) (e.g., `"https://10.10.1.10:8443"`).
+  *   **Data IPs**: Set `controller.dataIPs` to the iSCSI/NVMe-oF data interfaces.
+  *   **Kubelet Directory**: If using a distribution like k0s, k3s, or MicroK8s, set `node.kubeletDir`.
+      *   **Standard**: `/var/lib/kubelet` (default)
+      *   **k0s**: `/var/lib/k0s/kubelet`
+      *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
+      *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
 
 2. **Install with Helm**:
-   Run the install command from the root of the repository:
+   Run the install command from the root of the repository, referencing the correct location of `my-values.yaml`:
 
-   ```bash
-   helm install santricity-csi ./charts/santricity-csi --namespace kube-system
-   ```
+  ```bash
+  helm install santricity-csi ./charts/santricity-csi -f my-values.yaml --namespace santricity-csi --create-namespace
+  ```
 
-   Or override values directly (example for k0s):
+  Or override values directly (example for k0s):
 
-   ```bash
-   helm install santricity-csi ./charts/santricity-csi \
+  ```bash
+  helm install santricity-csi ./charts/santricity-csi \
      --namespace kube-system \
      --set controller.endpoint="https://10.10.1.10:8443,https://10.10.1.11:8443" \
      --set controller.credentials.username="admin" \
      --set controller.credentials.password="password" \
      --set node.kubeletDir="/var/lib/k0s/kubelet"
-   ```
+  ```
+
+  Check SANtricity CSI status:
+  ```sh
+  kubectl get pods -n santricity-csi # -l app.kubernetes.io/name=santricity-csi
+  ```
+
+  If no issues, it may be good time to delete `my-values.yaml` or edit out SANtricity credentials from it. Next, create Storage Classes.
 
 ### Manual Deployment (Alternative)
 
@@ -116,13 +123,26 @@ This driver is designed to work efficiently with DDP. The recommended strategy i
 
 Retrieve the `VolumeGroupRef` (Pool ID) of your DDP from the SANtricity UI or CLI.
 
+You may use `santricity-cli` for that. build in repository's root and use it to get storage pool information. Example:
+
+```sh
+go build ./cmd/santricity-cli/
+./santricity-cli --endpoint 10.0.0.1 --username monitor --password "monitor123" get pools --insecure
+```
+
+See [README](./README.md) or use Swagger if you get stuck.
+
 ### 2. Configure StorageClasses
 
-Edit `csi/deploy/csi-driver.yaml` to point to your specific Pool ID. You can define multiple classes for the same pool to expose different RAID features supported by DDP. Volume sector size can be defined with the `block_size` parameter.
+Edit Storage Class samples below to point to your specific Pool ID. You can define multiple classes for the same pool to expose different RAID features supported by DDP.
+
+Technically, SANtricity CSI does not distinguish pools by type, but DDP is the recommended type. If you have many small Kubernetes volumes or run very specific workloads, feel free to try a classic storage pool - or multiple, or mixed DDP and classic - as well.
+
+Volume sector size can be defined with the `block_size` parameter.
 
 ## Protocol Support & Limitations
 
-This driver currently supports **iSCSI** and **NVMe-oF (RoCE)** with ext3, ext4, btrfs filesystems.
+This driver is currently expected to work with **iSCSI** and **NVMe-oF (RoCE)** with ext3, ext4, btrfs filesystems.
 
 **LUKS** is not supported. 
 
@@ -140,6 +160,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: santricity-iscsi-raid1
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
 provisioner: santricity.scaleoutsean.github.io
 parameters:
   poolID: "04000000600A098000E3C1B000002CED62CF874D" # Your DDP ID
@@ -152,11 +174,18 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: santricity-iscsi-raid6
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
 provisioner: santricity.scaleoutsean.github.io
 parameters:
   poolID: "04000000600A098000E3C1B000002CED62CF874D" 
   raidLevel: "raid6"
 ```
+
+Notes:
+
+- Storage Class annotation on a SC may be set to `true` if you want to make that SC default
+- Change `provisioner` name if your driver is named differently
 
 This allows you to manage capacity at the single DDP level while offering different performance/protection tiers to Kubernetes users.
 
