@@ -1,6 +1,6 @@
 module github.com/scaleoutsean/santricity-go
 
-go 1.26.1
+go 1.26.3
 
 ignore ./api_reference/
 
@@ -13,6 +13,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.0
+	golang.org/x/sys v0.40.0
 	google.golang.org/grpc v1.79.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/mount-utils v0.35.1
@@ -64,7 +65,6 @@ require (
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
