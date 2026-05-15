@@ -2,6 +2,8 @@
 
 This plugin enables Proxmox VE to natively interact with SANtricity E-Series arrays in ways suitable for PVE 9.
 
+Note that the initial release used a custom health-check. That has been removed to simplify the plugin. Now the plugin requires no credentials of any kind. It's merely a metadata store for SANmox. In that sense, if you don't use SANmox (or build a Web UI or TUI of your own) there's no reason to use this plugin.
+
 ## Architecture: "The Big LUN" Approach
 
 This plugin extends Proxmox's native `LVMPlugin`. 
@@ -23,17 +25,14 @@ As you consume E-Series LUNs, register them using the plugin via the usual `pves
 
 Rather than aggressively hijacking the Proxmox UI or automatically provisioning storage upon plugin addition, this plugin relies on a **"Bring Your Own LUN"** approach.
 
-Admins pre-provision the base SANtricity volume and configure the local Volume Group (`vgcreate`). The plugin then attaches to this VG via Proxmox's native LVM engine, adding SANtricity-specific monitoring and lifecycle hooks where appropriate. 
+Admins pre-provision the base SANtricity volume and configure the local Volume Group (`vgcreate`). The plugin then attaches to this VG via Proxmox's native LVM engine, "tagging" LVM datastore with SANtricity system details. 
 
-This is the lowest-risk approach and prevents PVE upgrades from breaking custom UI patches. Terraform recipes for creating these foundational LUNs (for both shared LVM and single-host ZFS/Btrfs) are provided alongside the plugin.
+This is the lowest-risk approach: it prevents PVE upgrades from breaking custom UI patches and doesn't require any array credentials. Terraform recipes for creating these foundational LUNs (for both shared LVM and single-host ZFS/Btrfs) are provided alongside the plugin.
 
 ```sh
 pvesm add santricity_lvm my_pve_disk1 \
   --vgname my_pve_lvm1 \
-  --api_endpoint SANTRICITY_CONTROLLER_IP_ADDRESS \
-  --username "monitor" \
-  --password "fakePass" \
-  --insecure 0 \
+  --array_serial 952103002724 \
   --shared 1 \
   --saferemove 1 \
   --content "images,rootdir" \
@@ -43,11 +42,16 @@ pvesm add santricity_lvm my_pve_disk1 \
 
 There are several basic decisions to make on how you want to use LUNs:
 
-- `insecure` - if enabled, it ignores failed SANtricity TLS certificate validation (not recommended)
 - `shared` - mandatory for LVMs on shared storage that need to be able to failover (i.e. be used from another host)
 - `saferemove` - whether to perform VM/CT disk wipe after un-allocation, it's recommended to enable
 - `content` - images and rootdir are common choices, both are recommended 
 - `snapshot-as-volume-chain` is a new PVE tech preview feature, recommended to enable as it enables VM snapshots and improved backup
+
+You may get your array's serial number with:
+
+```sh
+curl -ks -X GET 'https://USER:PASS@sCONTROLLER:8443/devmgr/v2/storage-systems/1' | jq .chassisSerialNumber
+```
 
 ### Workflow: single-host filesystems (ZFS, Btrfs...)
 
@@ -63,13 +67,13 @@ In the case of unplanned host failure, its LUN(s) can be mapped to a new (replac
 
 ## Security Profile and Least-Privilege Design
 
-Because this plugin intentionally leverages a "Bring Your Own LUN" architecture rather than aggressively provisioning blocks via Proxmox automatically, it adheres to extremely strict least-privilege security paradigms.
+Because this plugin intentionally leverages a "Bring Your Own LUN" architecture rather than aggressively provisioning blocks via Proxmox automatically, it introduces no additional risks compared to built-in PVE shared LVM plugin.
 
-When the SANtricity system API endpoints are provided to Proxmox via the `--api_username` and `--api_password` flags, it only requires **Monitor (Read-Only)** role credentials from SANtricity! 
+By design, **zero** API credentials are kept on the Proxmox nodes. The `SANtricityPlugin.pm` module acts purely as a metadata registry, storing only routing attributes like `array_serial`. This fully eliminates the risk of an array-level compromise even if a Proxmox host is completely breached or hit with ransomware.
 
-Because the storage lifecycle is offloaded to your pre-configured Proxmox Logical Volume loops or Terraform CI/CD pipelines, the Proxmox environment never needs dangerous Admin or Storage provisioning bindings sent across the hypervisor management plane.
+Because the storage lifecycle is offloaded to your pre-configured Proxmox Logical Volume loops, external TUIs, or Terraform CI/CD pipelines, the Proxmox environment never needs dangerous Admin, Storage, or even Read-Only provisioning bindings sent across the hypervisor management plane.
 
-Proxmox simply utilizes the SANtricity system APIs for heartbeat metrics and "Current Failure" visibility statuses to rapidly identify array-side issues before they impact Datacenter VMs.
+Proxmox simply utilizes native LVM I/O paths for health checks, offloading rich analytics and management to air-gapped external tooling that can safely utilize the metadata bridges defined in this plugin.
 
 ## Possible feature enhancements
 
@@ -79,9 +83,10 @@ My "Proxmox TUI" approach (used in [Firemox](https://github.com/scaleoutsean/fir
 
 Until Proxmox improves their storage plugin approach and adds NVMe/RoCE support, TUIs remain the way to go. Get its SANtricity cousin SANmox [here](https://github.com/scaleoutsean/santricity-powershell/tree/master/sanmox).
 
-This plugin could work in tandem with SANmox:
+How this plugin adds valu to SANmox:
 
-- SANmox currently creates plain shared LVM datastores, but it could create `santricity_lvm`-type datastores (it currently does not because that would burden the PVE administrator)
+- SANmox currently creates standard PVE shared LVM datastores, but it could create `santricity_lvm`-type datastores
 - SANmox could then know which datastores are SANtricity-based, and perform maintenance, management and monitoring actions without prompting user to identify SANtricity-based LVM datastores
 
-This option will be evaluated once PVE adds support for NVMe/RoCE because without it end-to-end provisioning remains possible only for E-Series iSCSI storage.
+This option is available in PVE 9.1 for iSCSI now, but needs to be added to SANmox. NVMe/RoCE users have to scan and connect manually from shell until PVE starts supporting NVMe/RoCE target scanning.
+

@@ -264,8 +264,6 @@ kubectl logs <pod> -n santricity-csi
 
 **NOTE:** you may run SANtricity CSI in debug mode, but note that secrets may leak into debug logs.
 
-Check the logs of the node plugin on a specific node:
-
 ### CSI Controller API connectivity issues (CNI/Routing)
 
 If the controller pod logs show `context deadline exceeded` when connecting to the SANtricity API, but you can reach the API from the Kubernetes nodes directly, your cluster's CNI may be failing to route or SNAT pod traffic to the external management network.
