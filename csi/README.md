@@ -15,7 +15,7 @@ This is a Container Storage Interface (CSI) driver for NetApp SANtricity storage
 ## Prerequisites
 
 - Kubernetes 1.30+
-- NetApp E-Series array with SANtricity v11.90+ (proxies are not supported)
+- NetApp E-Series array with SANtricity v11.90+ (no SANtricity Web Services Proxy and similar)
 - Appropriate client package (`open-iscsi` and `multipath-tools` for iSCSI, or `nvme-cli` for NVMe/RoCE) installed on all worker nodes
 
 ## Building the Driver
@@ -45,12 +45,13 @@ The recommended way to deploy the driver is using the included Helm chart.
       *   **k0s**: `/var/lib/k0s/kubelet`
       *   **k3s**: `/var/lib/rancher/k3s/agent/kubelet`
       *   **MicroK8s**: `/var/snap/microk8s/common/var/lib/kubelet`
+      *   **Talos**: (default)
 
 2. **Install with Helm**:
   Run the install command from the root of the repository, referencing the correct location of `my-values.yaml`:
 
   ```bash
-  helm install santricity-csi ./charts/santricity-csi -f my-values.yaml --namespace santricity-csi --create-namespace
+  helm upgrade --install santricity-csi ./charts/santricity-csi -f my-values.yaml --namespace santricity-csi --create-namespace
   ```
 
   Or override the values directly (example for k0s):
@@ -116,6 +117,8 @@ args:
   - "--api-url=https://10.10.3.10"
 ```
 
+Note that in this case, if you enable and don't customize metrics ports, there may be port conflicts if you don't set unique values on a per-CSI instance basis.
+
 ## Configuration Strategy: Dynamic Disk Pools (DDP)
 
 This driver is designed to work efficiently with DDP. The recommended strategy is to create a single large DDP on your array and use Kubernetes StorageClasses to define different service levels (e.g., RAID levels or specific pools).
@@ -164,6 +167,7 @@ metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
 provisioner: santricity.scaleoutsean.github.io
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   poolID: "04000000600A098000E3C1B000002CED62CF874D" # Your DDP ID
   raidLevel: "raid1"
@@ -178,6 +182,7 @@ metadata:
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
 provisioner: santricity.scaleoutsean.github.io
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   poolID: "04000000600A098000E3C1B000002CED62CF874D" 
   raidLevel: "raid6"
@@ -189,6 +194,20 @@ Notes:
 - Change `provisioner` values if your CSI driver is named differently
 
 This allows you to manage capacity at the single DDP level while offering different performance/protection tiers to Kubernetes users.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: santricity-pg-wal
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: santricity-iscsi-raid1
+```
 
 ### Capabilities 
 
@@ -319,38 +338,3 @@ kubectl exec -it -n santricity-csi $NODE_POD -c csi-driver -- wget -qO- 127.0.0.
 - `santricity_api_requests_total`: Counter of API requests to the array, labeled by method, path, and status code.
 - `santricity_api_request_duration_seconds`: Histogram of API request latencies.
 - `santricity_volumes_total`: Gauge of total volumes on the array (updated every 5 minutes).
-
-### Scraping configuration
-
-Add the following annotations to your driver Pods (DaemonSet/Deployment) to enable automatic scraping:
-
-```yaml
-metadata:
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "8080"
-    prometheus.io/path: "/metrics"
-```
-
-If you need to collect these without authentication and from outside of Kubernetes, you need to open access to every node via a `NodePort` service type. You can create a service directly using `kubectl`:
-
-```sh
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: santricity-csi-metrics
-  namespace: santricity-csi
-spec:
-  selector:
-    app: santricity-csi-controller
-  type: NodePort
-  externalTrafficPolicy: Local
-  ports:
-    - port: 8080
-      targetPort: 8080
-      nodePort: 32080
-EOF
-```
-
-Best approach security-wise is to leverage Kubernetes for authentication as it is done with other services that require authentication.
