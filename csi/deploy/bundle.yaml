@@ -6,10 +6,10 @@ metadata:
   name: santricity-csi-controller
   namespace: default
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
     app: santricity-csi-controller
 ---
@@ -20,10 +20,10 @@ metadata:
   name: santricity-csi-node
   namespace: default
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
     app: santricity-csi-node
 ---
@@ -33,10 +33,10 @@ kind: Secret
 metadata:
   name: santricity-csi-credentials
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 type: Opaque
 stringData:
@@ -49,10 +49,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-controller-role
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -89,10 +89,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-node-role
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups: [""]
@@ -114,10 +114,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-controller-binding
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 subjects:
   - kind: ServiceAccount
@@ -134,10 +134,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-node-binding
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 subjects:
   - kind: ServiceAccount
@@ -154,10 +154,10 @@ kind: DaemonSet
 metadata:
   name: santricity-csi-node
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 spec:
   selector:
@@ -177,7 +177,7 @@ spec:
         - name: csi-driver
           securityContext:
             privileged: true
-          image: "ghcr.io/scaleoutsean/santricity-go:1.0.0-beta.3"
+          image: "ghcr.io/scaleoutsean/santricity-go:1.0.0-beta.4"
           imagePullPolicy: Always
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -276,10 +276,10 @@ kind: Deployment
 metadata:
   name: santricity-csi-controller
   labels:
-    helm.sh/chart: santricity-csi-1.0.0-beta.3
+    helm.sh/chart: santricity-csi-1.0.0-beta.4
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
-    app.kubernetes.io/version: "1.0.0-beta.3"
+    app.kubernetes.io/version: "1.0.0-beta.4"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 2
@@ -296,7 +296,7 @@ spec:
       serviceAccountName: santricity-csi-controller
       containers:
         - name: csi-driver
-          image: "ghcr.io/scaleoutsean/santricity-go:1.0.0-beta.3"
+          image: "ghcr.io/scaleoutsean/santricity-go:1.0.0-beta.4"
           imagePullPolicy: Always
           args:
             - "--endpoint=$(CSI_ENDPOINT)"
