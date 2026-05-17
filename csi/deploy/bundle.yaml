@@ -6,7 +6,7 @@ metadata:
   name: santricity-csi-controller
   namespace: default
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -20,7 +20,7 @@ metadata:
   name: santricity-csi-node
   namespace: default
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -33,7 +33,7 @@ kind: Secret
 metadata:
   name: santricity-csi-credentials
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -49,7 +49,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-controller-role
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -89,7 +89,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-node-role
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -114,7 +114,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-controller-binding
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -134,7 +134,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: santricity-csi-node-binding
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -154,7 +154,7 @@ kind: DaemonSet
 metadata:
   name: santricity-csi-node
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -185,6 +185,10 @@ spec:
             - "--controller=false"
             - "--node=true"
             - "--metrics-port=8081"
+          ports:
+            - name: metrics
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
@@ -235,7 +239,7 @@ spec:
           hostPath:
             # Standard: /var/lib/kubelet
             path: /var/lib/kubelet
-            type: Directory
+            type: DirectoryOrCreate
         - name: plugin-dir
           hostPath:
             # Adjust prefix matching kubelet-dir above
@@ -245,7 +249,7 @@ spec:
           hostPath:
             # Adjust prefix matching kubelet-dir above
             path: /var/lib/kubelet/plugins_registry/
-            type: Directory
+            type: DirectoryOrCreate
         - name: device-dir
           hostPath:
             path: /dev
@@ -272,7 +276,7 @@ kind: Deployment
 metadata:
   name: santricity-csi-controller
   labels:
-    helm.sh/chart: santricity-csi-0.1.0
+    helm.sh/chart: santricity-csi-1.0.0
     app.kubernetes.io/name: santricity-csi
     app.kubernetes.io/instance: santricity-csi
     app.kubernetes.io/version: "1.0.0"
@@ -299,6 +303,11 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--controller=true"
             - "--node=false"
+            - "--metrics-port=8080"
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
           env:
             - name: CSI_ENDPOINT
               value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock
