@@ -312,7 +312,7 @@ helm uninstall santricity-csi -n santricity-csi
 
 ### Finding the leader CSI Controller
 
-Use `get lease`.
+Use `get lease` to find the holder.
 
 ```sh
 $ kubectl get lease -n santricity-csi 

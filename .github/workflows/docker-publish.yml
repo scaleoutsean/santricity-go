@@ -2,7 +2,7 @@ name: Build and Publish CSI Driver
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'csi/**'
       - '.github/workflows/docker-publish.yml'
@@ -12,7 +12,7 @@ on:
       - 'csi-v*.*.*'
       - 'csi-*.*.*'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'csi/**'
       - '.github/workflows/docker-publish.yml'
@@ -26,7 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -69,3 +69,25 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Bump Helm Chart version automatically when a tag is pushed
+      - name: Bump and push Helm Chart version
+        if: startsWith(github.ref, 'refs/tags/csi-')
+        run: |
+          # Extract version from tag (e.g. csi-v1.0.0-beta.3 -> 1.0.0-beta.3, or csi-1.0.0 -> 1.0.0)
+          VERSION=${GITHUB_REF#refs/tags/csi-}
+          VERSION=${VERSION#v}
+          
+          # Update version and appVersion in Chart.yaml
+          sed -i "s/^version:.*/version: \"$VERSION\"/" charts/santricity-csi/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"csi-$VERSION\"/" charts/santricity-csi/Chart.yaml
+          
+          # Comment out or update the manually hardcoded tag in values.yaml to rely on Chart.yaml appVersion
+          sed -i -E 's/^(\s*tag:).*/\1 ""/' charts/santricity-csi/values.yaml
+          
+          # Commit and push back to master
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add charts/santricity-csi/Chart.yaml charts/santricity-csi/values.yaml
+          git commit -m "chore: bump Helm chart version to $VERSION [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:master
