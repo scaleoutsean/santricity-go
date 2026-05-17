@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Version = "1.0.0-beta.1"
+	Version = "1.0.0-beta.2"
 )
 
 type Driver struct {
@@ -285,30 +285,30 @@ func (d *Driver) updateVolumeMetrics() {
 	}
 	metrics.DriverVolumesTotal.Set(float64(len(volumes)))
 
-        // Clear out old metric instances (in case volumes were deleted)
-        metrics.DriverVolumeInfo.Reset()
+	// Clear out old metric instances (in case volumes were deleted)
+	metrics.DriverVolumeInfo.Reset()
 
-        for _, vol := range volumes {
-                // We only care about standard volumes for this metric
-                if vol.VolumeUse != "" && vol.VolumeUse != "standardVolume" && vol.VolumeUse != "repositoryVolume" {
-                        continue
-                }
+	for _, vol := range volumes {
+		// We only care about standard volumes for this metric
+		if vol.VolumeUse != "" && vol.VolumeUse != "standardVolume" && vol.VolumeUse != "repositoryVolume" {
+			continue
+		}
 
-                pvcName := ""
-                pvcNamespace := ""
-                for _, tag := range vol.VolumeTags {
-                        if tag.Key == "pvc_name" {
-                                pvcName = tag.Value
-                        } else if tag.Key == "pvc_namespace" {
-                                pvcNamespace = tag.Value
-                        }
-                }
+		pvcName := ""
+		pvcNamespace := ""
+		for _, tag := range vol.VolumeTags {
+			if tag.Key == "pvc_name" {
+				pvcName = tag.Value
+			} else if tag.Key == "pvc_namespace" {
+				pvcNamespace = tag.Value
+			}
+		}
 
-                // If it's not tagged by CSI, we just record it as empty pvc_name
-                // so we can still track raw physical allocations cluster-wide
-                capacityBytes, err := strconv.ParseFloat(vol.VolumeSize, 64)
-                if err == nil {
-                        metrics.DriverVolumeInfo.WithLabelValues(pvcNamespace, pvcName, vol.VolumeRef).Set(capacityBytes)
-                }
-        }
+		// If it's not tagged by CSI, we just record it as empty pvc_name
+		// so we can still track raw physical allocations cluster-wide
+		capacityBytes, err := strconv.ParseFloat(vol.VolumeSize, 64)
+		if err == nil {
+			metrics.DriverVolumeInfo.WithLabelValues(pvcNamespace, pvcName, vol.VolumeRef).Set(capacityBytes)
+		}
+	}
 }
