@@ -31,14 +31,14 @@ var (
 	DriverVolumesTotal = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "santricity_volumes_total",
-			Help: "Estimated number of volumes managed by this driver instance",
+			Help: "Estimated number of volumes on pools used by this instance",
 		},
 		[]string{"system_id", "pool_id"},
 	)
 
 	DriverVolumeInfo = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "santricity_volume_info",
+			Name: "santricity_volume_info_bytes",
 			Help: "Physical capacity in bytes allocated on the SANtricity array per PVC.",
 		},
 		[]string{"pvc_namespace", "pvc_name", "volume_id", "volume_name", "csi_driver"},

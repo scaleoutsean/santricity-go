@@ -4,13 +4,14 @@ This is a Container Storage Interface (CSI) driver for NetApp SANtricity storage
 
 ## Features
 
-- **Dynamic Provisioning**: Create volumes on demand.
+- **Dynamic Provisioning**: Create, publish and remove volumes on demand.
 - **iSCSI and NVMe/RoCE Connectivity**: Automatically mounts volumes to pods using iSCSI or NVMe/RoCE
 - **Volume Expansion**: Resizing of PVCs.
 - **Volume Metadata Tagging**: PVC metadata are stored in SANtricity volume metadata.
 - **DDP Support**: Optimized for Dynamic Disk Pools (DDP) with RAID1/RAID6 volume support.
-- **Indepdendent Multiple Backends for Multi-Rack, Multi-Array Clusters**: One egg per basket. Independent CSI for each rack and in-rack E-Series array(s)
-- - **Snapshots and Linked Clones**: TODO
+- **Independent Multiple Backends for Multi-Rack, Multi-Array Clusters**: One egg per basket. Independent CSI for each rack and in-rack E-Series array(s)
+- **Prometheus Metrics**: volume and storage pool metrics sufficient to cross-reference SANtricity CSI resources with information gathered by collectors such as [EPA](https://github.com/scaleoutsean/eseries-perf-analyzer)
+- **Snapshots and Linked Clones**: TODO
 
 ## Prerequisites
 
@@ -343,7 +344,7 @@ To quickly check the generated metrics manually, you can use `kubectl exec`:
 kubectl exec -it -n santricity-csi deployment/santricity-csi-controller -c csi-driver -- wget -qO- 127.0.0.1:8080/metrics
 
 # Check node metrics (pick a specific pod from the daemonset)
-NODE_POD=$(kubectl get pod -n santricity-csi -l app.kubernetes.io/component=node -o jsonpath="{.items[0].metadata.name}")
+NODE_POD=$(kubectl get pod -n santricity-csi -o name | grep node | head -n 1)
 kubectl exec -it -n santricity-csi $NODE_POD -c csi-driver -- wget -qO- 127.0.0.1:8081/metrics
 ```
 
@@ -351,4 +352,7 @@ kubectl exec -it -n santricity-csi $NODE_POD -c csi-driver -- wget -qO- 127.0.0.
 
 - `santricity_api_requests_total`: Counter of API requests to the array, labeled by method, path, and status code.
 - `santricity_api_request_duration_seconds`: Histogram of API request latencies.
-- `santricity_volumes_total`: Gauge of total volumes on the array (updated every 5 minutes).
+- `santricity_volume_info_bytes`: Physical capacity in bytes allocated on the SANtricity array per PVC.
+- `santricity_volumes_total`: Estimated number of volumes on pools used by this instance (updated every 5 minutes).
+
+**Note on Node PVC Metrics:** The SANtricity CSI Node pods currently do not export custom metrics by design. For deep node-level PVC filesystem statistics (which were recently deprecated/removed from native Kubernetes kubelet metrics), we recommend using community tools such as [kubelet-volume-stats-exporter](https://github.com/dkaliberda/kubelet-volume-stats-exporter) alongside your standard array monitoring tools.
