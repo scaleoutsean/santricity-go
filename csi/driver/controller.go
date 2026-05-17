@@ -145,6 +145,9 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		metadata["pv_name"] = v
 	}
 
+	// Inject the CSI driver name so we can distinguish our volumes from orphaned or third-party volumes
+	metadata["csi_driver"] = d.name
+
 	if poolID != "" {
 		// Verify if Pool Exists
 		p, err := d.client.GetVolumePoolByRef(ctx, poolID)

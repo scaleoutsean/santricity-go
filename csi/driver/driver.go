@@ -25,7 +25,7 @@ var (
 )
 
 const (
-	Version = "1.0.0-beta.2"
+	Version = "1.0.0-beta.5"
 )
 
 type Driver struct {
@@ -278,12 +278,30 @@ func (d *Driver) updateVolumeMetrics() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	systemID, err := d.client.GetChassisSerialNumber(ctx)
+	if err != nil {
+		klog.Warningf("Failed to retrieve chassis serial number for metrics: %v", err)
+		systemID = "unknown"
+	}
+
 	volumes, err := d.client.GetVolumes(ctx)
 	if err != nil {
 		klog.Warningf("Failed to update volume metrics: %v", err)
 		return
 	}
-	metrics.DriverVolumesTotal.Set(float64(len(volumes)))
+
+	// Count volumes by pool
+	poolCounts := make(map[string]int)
+	for _, vol := range volumes {
+		if vol.VolumeGroupRef != "" {
+			poolCounts[vol.VolumeGroupRef]++
+		}
+	}
+
+	metrics.DriverVolumesTotal.Reset()
+	for poolID, count := range poolCounts {
+		metrics.DriverVolumesTotal.WithLabelValues(systemID, poolID).Set(float64(count))
+	}
 
 	// Clear out old metric instances (in case volumes were deleted)
 	metrics.DriverVolumeInfo.Reset()
@@ -296,11 +314,14 @@ func (d *Driver) updateVolumeMetrics() {
 
 		pvcName := ""
 		pvcNamespace := ""
+		csiDriver := ""
 		for _, tag := range vol.VolumeTags {
 			if tag.Key == "pvc_name" {
 				pvcName = tag.Value
 			} else if tag.Key == "pvc_namespace" {
 				pvcNamespace = tag.Value
+			} else if tag.Key == "csi_driver" {
+				csiDriver = tag.Value
 			}
 		}
 
@@ -308,7 +329,7 @@ func (d *Driver) updateVolumeMetrics() {
 		// so we can still track raw physical allocations cluster-wide
 		capacityBytes, err := strconv.ParseFloat(vol.VolumeSize, 64)
 		if err == nil {
-			metrics.DriverVolumeInfo.WithLabelValues(pvcNamespace, pvcName, vol.VolumeRef).Set(capacityBytes)
+			metrics.DriverVolumeInfo.WithLabelValues(pvcNamespace, pvcName, vol.VolumeRef, vol.Label, csiDriver).Set(capacityBytes)
 		}
 	}
 }
