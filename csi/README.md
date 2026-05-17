@@ -195,6 +195,8 @@ Notes:
 
 This allows you to manage capacity at the single DDP level while offering different performance/protection tiers to Kubernetes users.
 
+Create a PVC using one of the SCs above:
+
 ```yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -306,6 +308,18 @@ Uninstall wrong upgrade:
 
 ```sh
 helm uninstall santricity-csi -n santricity-csi 
+```
+
+### Finding the leader CSI Controller
+
+Use `get lease`.
+
+```sh
+$ kubectl get lease -n santricity-csi 
+NAME                                                         HOLDER                                                 AGE
+external-attacher-leader-santricity-scaleoutsean-github-io   santricity-csi-controller-6bcc5679b7-bbns5             26m
+external-resizer-santricity-scaleoutsean-github-io           santricity-csi-controller-6bcc5679b7-xqwlb             26m
+santricity-scaleoutsean-github-io                            1778993623808-8215-santricity-scaleoutsean-github-io   26m
 ```
 
 ## Monitoring
