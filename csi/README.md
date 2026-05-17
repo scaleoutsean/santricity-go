@@ -291,7 +291,28 @@ helm uninstall santricity-csi -n santricity-csi
 
 ## Monitoring
 
-The driver exposes Prometheus metrics on port 8080 (default) at `/metrics`.
+Controller and Node are both enabled; you may disable or modify these `my-values.yaml` when deploying SANtricity CSI.
+
+```yaml
+metrics:
+  enabled: true
+  port: 8080
+  enableNodeMetrics: true
+  nodePort: 8081
+```
+
+The driver exposes Prometheus metrics on port 8080 (default) for the controller, and 8081 for the nodes, at `/metrics`. 
+
+To quickly check the generated metrics manually, you can use `kubectl exec`:
+
+```sh
+# Check controller metrics
+kubectl exec -it -n santricity-csi deployment/santricity-csi-controller -c csi-driver -- wget -qO- 127.0.0.1:8080/metrics
+
+# Check node metrics (pick a specific pod from the daemonset)
+NODE_POD=$(kubectl get pod -n santricity-csi -l app.kubernetes.io/component=node -o jsonpath="{.items[0].metadata.name}")
+kubectl exec -it -n santricity-csi $NODE_POD -c csi-driver -- wget -qO- 127.0.0.1:8081/metrics
+```
 
 ### Available metrics
 

@@ -1,14 +1,14 @@
 # Helm Chart for SANtricity CSI 
 
-Create my-values.yaml in repository root:
+Available values are in `./charts/santricity-csi/values.yaml`. Create `my-values.yaml` in repository root with whatever you want to override:
 
 ```yaml
 controller:
   endpoint: "https://10.10.10.10:8443" # SANtricity controlle(s) management IPs
   dataIPs: "192.168.1.1,192.168.2.1"   # iSCSI or NVMe Portal IPs (dual fabric)
   credentials:
-    username: "admin"
-    password: ""      # SANtricity admin password
+    username: "admin" # SANtricity has a 'storage' role with a smaller scope.
+    password: ""      # SANtricity 'storage' (alternatively, 'admin') account password
 
 storageClasses:
   - name: santricity-nvme-raid1

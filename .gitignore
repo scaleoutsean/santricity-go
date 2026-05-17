@@ -3,7 +3,9 @@ santricity-cli
 api_reference/
 ./vscode/
 .vscode/
-santricity-csi
+# Ignore binary builds at the root
+/santricity-csi
+/santricity-csi.tar
 tools/iscsi-verify/iscsi-verify
 main
 terraform-provider-santricity

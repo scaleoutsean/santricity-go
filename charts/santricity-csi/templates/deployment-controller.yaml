@@ -24,6 +24,15 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--controller=true"
             - "--node=false"
+            {{- if .Values.metrics.enabled }}
+            - "--metrics-port={{ .Values.metrics.port }}"
+            {{- end }}
+          {{- if .Values.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+          {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix:///var/lib/csi/sockets/pluginproxy/csi.sock

@@ -27,7 +27,15 @@ spec:
             - "--nodeid=$(NODE_ID)"
             - "--controller=false"
             - "--node=true"
-            - "--metrics-port=8081"
+            {{- if and .Values.metrics.enabled .Values.metrics.enableNodeMetrics }}
+            - "--metrics-port={{ .Values.metrics.nodePort }}"
+            {{- end }}
+          {{- if and .Values.metrics.enabled .Values.metrics.enableNodeMetrics }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.nodePort }}
+              protocol: TCP
+          {{- end }}
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock

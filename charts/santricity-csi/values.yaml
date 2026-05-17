@@ -14,6 +14,12 @@ controller:
     username: ""
     password: ""
   verifyTLS: false
+
+metrics:
+  enabled: true
+  port: 8080
+  enableNodeMetrics: true
+  nodePort: 8081
   
 node:
   enableReaper: false
