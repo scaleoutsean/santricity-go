@@ -29,7 +29,7 @@ docker build -t santricity-csi:latest -f csi/Dockerfile .
 
 *Note: You may need to push this to a registry accessible by your cluster.*
 
-Alternatively, use a GHCR image from [this page](https://github.com/scaleoutsean/santricity-go/pkgs/container/santricity-go). Pick a recent `:csi-v{VER}` tag and set the Helm chart's CSI driver's image tag to that (see below).
+Alternatively, use a GHCR image from [this page](https://github.com/scaleoutsean/santricity-go/pkgs/container/santricity-go). Pick a recent `:csi-{VERSION}` tag and set the Helm chart's CSI driver's image tag to that (see below).
 
 ## Deployment
 

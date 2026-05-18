@@ -19,7 +19,7 @@ sub type {
 sub api {
     # Dynamically match the Proxmox Plugin API version (e.g., v10 for PVE 8, v13 for PVE 9)
     # This prevents the "does not provide an api() method" error.
-    return eval { PVE::Storage::APIVER } || 10;
+    return eval { PVE::Storage::APIVER() } || 10;
 }
 
 sub plugindata {
