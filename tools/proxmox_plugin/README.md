@@ -2,6 +2,42 @@
 
 This plugin enables Proxmox VE to natively interact with SANtricity E-Series arrays in ways suitable for PVE 9.
 
+## Quick start
+
+Copy the plugin to **all** PVE nodes and activate it.
+
+```sh
+mkdir - /usr/share/perl5/PVE/Storage/Custom/
+chmopd +x /usr/share/perl5/PVE/Storage/Custom/SANtricityPlugin.pm
+perl -c /usr/share/perl5/PVE/Storage/Custom/SANtricityPlugin.pm
+
+systemctl restart pvedaemon pvestatd
+```
+
+Add shared LVM from the CLI (run this on a single PVE node only, such as the first node; Proxmox's cluster filesystem will automatically replicate the configuration to all other nodes):
+
+```sh
+pvesm add santricity_lvm my_pve_disk1 \
+  --vgname my_pve_lvm1 \
+  --array_serial 952103002724 \
+  --shared 1 \
+  --saferemove 1 \
+  --content "images,rootdir" \
+  --snapshot-as-volume-chain 1
+```
+
+You'll see a new entry in `/etc/pve/storage.cfg`:
+
+```sh
+santricity_lvm: my_pve_disk1
+	array_serial 952419000943
+	shared 1
+	vgname my_pve_lvm1
+	content images,rootdir
+	saferemove 1
+	snapshot-as-volume-chain 1
+```
+
 ## About `santricity_lvm`
 
 The initial release used a custom health-check. 
@@ -28,10 +64,9 @@ At the same time - thanks to experimental snapshot support on LVM in PVE 9 - thi
 
 ## Installation
 
-1. Copy the compiled `santricity-cli` binary to `/usr/local/bin/` on **all** Proxmox nodes and make it executable.
-2. Copy `SANtricityPlugin.pm` to `/usr/share/perl5/PVE/Storage/Custom/SANtricityPlugin.pm` on **all** Proxmox nodes and make it executable.
+Copy `SANtricityPlugin.pm` to `/usr/share/perl5/PVE/Storage/Custom/SANtricityPlugin.pm` on **all** Proxmox nodes and make it executable with `chmod +x`.
 
-As you consume E-Series LUNs, register them using the plugin via the usual `pvesm` command, which stores LVM configuration in Proxmox Datacenter storage config (`/etc/pve/storage.cfg`).
+As you consume E-Series LUNs, register them using the plugin via the usual `pvesm` command or API calls, which uses `santricity_lvm` to register datastores and stores LVM configuration in Proxmox Datacenter storage config (`/etc/pve/storage.cfg`).
 
 ### Workflow: Pre-provisioned (Bring Your Own LUN) for shared LVM
 
