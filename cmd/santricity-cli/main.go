@@ -407,7 +407,7 @@ func main() {
 	createVolumeCmd.Flags().StringVar(&volSizeStr, "size", "", "Size in GB")
 	createVolumeCmd.Flags().StringVar(&volMediaType, "media-type", "hdd", "Media Type (hdd, ssd, nvme)")
 	createVolumeCmd.Flags().StringVar(&volFSType, "fstype", "xfs", "Filesystem Type")
-	createVolumeCmd.Flags().StringVar(&volRaidLevel, "raid-level", "raid6", "RAID Level")
+	createVolumeCmd.Flags().StringVar(&volRaidLevel, "raid-level", "", "RAID Level (e.g. raid1, raid6). Leave empty to use pool default.")
 	createVolumeCmd.Flags().IntVar(&volBlockSize, "block-size", 0, "Block Size (e.g. 512, 4096)")
 
 	var mappingVolID, mappingTargetID string

@@ -751,6 +751,10 @@ func (d Client) GetVolume(ctx context.Context, name string) (VolumeEx, error) {
 // GetVolumeByRef gets a single volume from the array.
 func (d Client) GetVolumeByRef(ctx context.Context, volumeRef string) (VolumeEx, error) {
 
+	if volumeRef == "" {
+		return VolumeEx{}, fmt.Errorf("volumeRef cannot be empty")
+	}
+
 	if d.config.DebugTraceFlags["method"] {
 		fields := log.Fields{
 			"Method":    "GetVolumeByRef",
@@ -919,6 +923,10 @@ func (d Client) CreateVolume(
 		retryVolume, getError := d.GetVolume(ctx, name)
 		if getError != nil {
 			return VolumeEx{}, getError
+		}
+
+		if retryVolume.VolumeRef == "" {
+			return VolumeEx{}, fmt.Errorf("volume %s could not be found after 422 response. Array rejection message: %s", name, string(responseBody))
 		}
 
 		result, retryErr := d.ensureVolumeTagsWithRetry(ctx, retryVolume.VolumeRef, tags)

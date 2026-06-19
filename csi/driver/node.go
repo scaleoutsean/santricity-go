@@ -235,6 +235,34 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		Exec:      exec.New(),
 	}
 
+	if req.GetVolumeCapability().GetBlock() != nil {
+		stagingFile := filepath.Join(stagingTargetPath, volID+".raw")
+		klog.Infof("Block volume capability detected, bind-mounting raw device %s to %s", realDev, stagingFile)
+
+		// Ensure stagingFile is an empty file for bind-mounting a device
+		f, err := os.OpenFile(stagingFile, os.O_CREATE, 0660)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create staging file %s: %v", stagingFile, err)
+		}
+		f.Close()
+
+		// Check if already mounted
+		notMnt, err := mounter.IsLikelyNotMountPoint(stagingFile)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, status.Errorf(codes.Internal, "Failed to check if %s is mount point: %v", stagingFile, err)
+		}
+
+		if !notMnt {
+			klog.Infof("Volume %s already mounted at %s", volID, stagingFile)
+			return &csi.NodeStageVolumeResponse{}, nil
+		}
+
+		if err := mounter.Mount(realDev, stagingFile, "", []string{"bind"}); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to bind mount block device: %v", err)
+		}
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	fsType := req.GetVolumeCapability().GetMount().GetFsType()
 	if fsType == "" {
 		fsType = "ext4" // Default
@@ -297,15 +325,28 @@ func (d *Driver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolu
 		return nil, status.Error(codes.InvalidArgument, "Staging Target Path must be provided")
 	}
 
-	klog.Infof("Unmounting %s", stagingTargetPath)
-
-	// Use mounter to unmount
+	// For Block volumes, the mount target is a file inside the staging directory.
+	// We unmount the file first.
 	mounter := mount.New("")
+	stagingFile := filepath.Join(stagingTargetPath, req.GetVolumeId()+".raw")
+	if notMnt, err := mounter.IsLikelyNotMountPoint(stagingFile); err == nil && !notMnt {
+		klog.Infof("Unmounting block staging file %s", stagingFile)
+		if err := mounter.Unmount(stagingFile); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to unmount %s: %v", stagingFile, err)
+		}
+	}
+	os.Remove(stagingFile)
+
+	klog.Infof("Unmounting %s", stagingTargetPath)
 
 	// Unmount
 	err := mounter.Unmount(stagingTargetPath)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to unmount %s: %v", stagingTargetPath, err)
+		// It's possible for block volumes that stagingTargetPath was never actually mounted,
+		// so if it's not a mount point, we just ignore the error.
+		if notMnt, _ := mounter.IsLikelyNotMountPoint(stagingTargetPath); !notMnt {
+			return nil, status.Errorf(codes.Internal, "Failed to unmount %s: %v", stagingTargetPath, err)
+		}
 	}
 
 	// Remove directory
@@ -328,14 +369,22 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 		return nil, status.Error(codes.InvalidArgument, "Start/Target paths missing")
 	}
 
-	// TODO: Handle Block Volume vs Mount Volume.
-	// Currently assumes Mount Volume (Filesystem) and creates a directory via MkdirAll.
-	// For Block Volume, targetPath should be a file, not a directory.
-	// We need to check req.GetVolumeCapability().GetBlock() vs GetMount() and branch accordingly.
-
-	// Mkdir target
-	if err := os.MkdirAll(targetPath, 0750); err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create target path %s: %v", targetPath, err)
+	// Check req.GetVolumeCapability().GetBlock() vs GetMount() and branch accordingly.
+	if req.GetVolumeCapability().GetBlock() != nil {
+		// Block Volume: targetPath must be an empty file
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0750); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create parent directory for target path %s: %v", targetPath, err)
+		}
+		f, err := os.OpenFile(targetPath, os.O_CREATE, 0660)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create target file %s: %v", targetPath, err)
+		}
+		f.Close()
+	} else {
+		// Mount Volume: targetPath must be a directory
+		if err := os.MkdirAll(targetPath, 0750); err != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to create target path %s: %v", targetPath, err)
+		}
 	}
 
 	mounter := mount.New("")
@@ -350,11 +399,17 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
+	// For Block volumes, the true staging mount source is the file we created inside the staging dir
+	mountSource := stagingPath
+	if req.GetVolumeCapability().GetBlock() != nil {
+		mountSource = filepath.Join(stagingPath, req.GetVolumeId()+".raw")
+	}
+
 	// Mount --bind
-	// The source for a bind mount is the staging path.
+	// The source for a bind mount is the staging path (or file).
 	// The target is the target path.
-	klog.Infof("Bind mounting %s to %s", stagingPath, targetPath)
-	if err := mounter.Mount(stagingPath, targetPath, "none", []string{"bind"}); err != nil {
+	klog.Infof("Bind mounting %s to %s", mountSource, targetPath)
+	if err := mounter.Mount(mountSource, targetPath, "none", []string{"bind"}); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to bind mount: %v", err)
 	}
 
