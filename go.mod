@@ -1,6 +1,6 @@
 module github.com/scaleoutsean/santricity-go
 
-go 1.26.4
+go 1.26.5
 
 ignore ./api_reference/
 
@@ -11,9 +11,9 @@ require (
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.38.1
 	github.com/kubernetes-csi/csi-lib-utils v0.23.2
 	github.com/prometheus/client_golang v1.23.2
-	github.com/sirupsen/logrus v1.9.3
+	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.8.0
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.47.0
 	google.golang.org/grpc v1.79.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/mount-utils v0.35.1
