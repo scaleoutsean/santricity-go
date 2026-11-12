@@ -1,6 +1,6 @@
 module github.com/scaleoutsean/santricity-go
 
-go 1.27.3
+go 1.27.4
 
 ignore ./api_reference/
 
